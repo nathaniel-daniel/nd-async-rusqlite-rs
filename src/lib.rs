@@ -74,7 +74,7 @@ mod test {
     #[tokio::test]
     async fn sanity() {
         let temp_path = Path::new("test-temp");
-        std::fs::create_dir_all(&temp_path).expect("failed to create temp dir");
+        std::fs::create_dir_all(temp_path).expect("failed to create temp dir");
 
         let connection_error = AsyncConnection::builder()
             .message_channel_capacity(128)
