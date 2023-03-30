@@ -1,6 +1,7 @@
 use crate::Error;
 use crate::SyncWrapper;
 use std::path::Path;
+use std::path::PathBuf;
 
 const DEFAULT_MESSAGE_CHANNEL_CAPACITY: usize = 32;
 
@@ -92,13 +93,13 @@ impl AsyncConnectionBuilder {
         self
     }
 
-    /// Open the connection.
-    pub async fn open<P>(&self, path: P) -> Result<AsyncConnection, Error>
-    where
-        P: AsRef<Path>,
-    {
-        let path = path.as_ref().to_path_buf();
-
+    fn open_internal(
+        &self,
+        path: PathBuf,
+    ) -> (
+        AsyncConnection,
+        tokio::sync::oneshot::Receiver<Result<(), rusqlite::Error>>,
+    ) {
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Message>(self.message_channel_capacity);
         let (connection_open_tx, connection_open_rx) = tokio::sync::oneshot::channel();
         std::thread::spawn(move || {
@@ -144,9 +145,35 @@ impl AsyncConnectionBuilder {
             }
         });
 
+        (AsyncConnection { tx }, connection_open_rx)
+    }
+
+    /// Open the connection.
+    pub async fn open<P>(&self, path: P) -> Result<AsyncConnection, Error>
+    where
+        P: AsRef<Path>,
+    {
+        let path = path.as_ref().to_path_buf();
+
+        let (async_connection, connection_open_rx) = self.open_internal(path);
         connection_open_rx.await.map_err(|_| Error::Aborted)??;
 
-        Ok(AsyncConnection { tx })
+        Ok(async_connection)
+    }
+
+    /// Open the connection from a blocking context.
+    pub fn blocking_open<P>(&self, path: P) -> Result<AsyncConnection, Error>
+    where
+        P: AsRef<Path>,
+    {
+        let path = path.as_ref().to_path_buf();
+
+        let (async_connection, connection_open_rx) = self.open_internal(path);
+        connection_open_rx
+            .blocking_recv()
+            .map_err(|_| Error::Aborted)??;
+
+        Ok(async_connection)
     }
 }
 

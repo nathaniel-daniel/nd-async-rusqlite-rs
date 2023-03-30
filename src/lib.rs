@@ -92,6 +92,18 @@ mod test {
             }
         }
 
+        // Ensure connection can be opened from a blocking context
+        {
+            let connection_path = connection_path.clone();
+            tokio::task::spawn_blocking(|| {
+                let _connection = AsyncConnection::builder()
+                    .blocking_open(connection_path)
+                    .expect("connection should be open");
+            })
+            .await
+            .expect("failed to join");
+        }
+
         let connection = AsyncConnection::builder()
             .open(connection_path)
             .await
