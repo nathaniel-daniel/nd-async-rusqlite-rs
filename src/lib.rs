@@ -92,13 +92,22 @@ mod test {
             }
         }
 
-        // Ensure connection can be opened from a blocking context
+        // Ensure connection can be opened and used from a blocking context
         {
             let connection_path = connection_path.clone();
             tokio::task::spawn_blocking(|| {
-                let _connection = AsyncConnection::builder()
+                let connection = AsyncConnection::builder()
                     .blocking_open(connection_path)
                     .expect("connection should be open");
+                connection
+                    .blocking_access(|connection| {
+                        connection.execute(
+                            "CREATE TABLE blocking (id INTEGER NOT NULL PRIMARY KEY) STRICT;",
+                            [],
+                        )
+                    })
+                    .expect("failed to run blocking access")
+                    .expect("query failed");
             })
             .await
             .expect("failed to join");

@@ -70,6 +70,29 @@ impl AsyncConnection {
 
         Ok(result)
     }
+
+    /// Access the database from a blocking context.
+    pub fn blocking_access<F, T>(&self, func: F) -> Result<T, Error>
+    where
+        F: FnOnce(&mut rusqlite::Connection) -> T + Send + 'static,
+        T: Send + 'static,
+    {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        self.tx
+            .blocking_send(Message::Access {
+                func: Box::new(move |connection| {
+                    let result =
+                        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| func(connection)))
+                            .map_err(|panic_data| Error::AccessPanic(SyncWrapper::new(panic_data)));
+                    let _ = tx.send(result).is_ok();
+                }),
+            })
+            .map_err(|_| Error::Aborted)?;
+
+        let result = rx.blocking_recv().map_err(|_| Error::Aborted)??;
+
+        Ok(result)
+    }
 }
 
 /// A builder for an [`AsyncConnection`].
