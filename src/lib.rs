@@ -97,6 +97,9 @@ mod test {
             .await
             .expect("connection should be open");
 
+        // Ensure connection is clone
+        let _connection1 = connection.clone();
+
         // Ensure connection survives panic
         let panic_error = connection
             .access(|_connection| panic!("the connection should survive the panic"))

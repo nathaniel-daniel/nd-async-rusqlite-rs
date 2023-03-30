@@ -14,7 +14,7 @@ enum Message {
 }
 
 /// An async rusqlite connection.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AsyncConnection {
     tx: tokio::sync::mpsc::Sender<Message>,
 }
