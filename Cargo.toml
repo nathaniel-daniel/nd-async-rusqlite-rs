@@ -6,10 +6,10 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 rusqlite = "0.29.0"
-tokio = { version = "1.27.0", features = ["sync"] }
+tokio = { version = "1.28.1", features = ["sync"] }
 
 [dev-dependencies]
-tokio = { version = "1.27.0", features = ["macros", "rt"] }
+tokio = { version = "1.28.1", features = ["macros", "rt"] }
 
 [features]
 bundled = ["rusqlite/bundled"]
