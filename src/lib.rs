@@ -12,10 +12,15 @@ pub enum Error {
     /// A rusqlite error
     Rusqlite(rusqlite::Error),
 
-    /// The request was aborted
+    /// The request was aborted for some reason.
+    ///
+    /// This means that the background thread shutdown while this request was in-flight.
     Aborted,
 
-    /// An access panicked
+    /// An access panicked.
+    ///
+    /// You can re-throw the panic data.
+    /// The background thread is still alive.
     AccessPanic(SyncWrapper<Box<dyn std::any::Any + Send + 'static>>),
 }
 
