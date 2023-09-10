@@ -3,6 +3,7 @@ mod builder;
 pub use self::builder::AsyncConnectionBuilder;
 use crate::Error;
 use crate::SyncWrapper;
+use std::sync::Arc;
 
 enum Message {
     Access {
@@ -16,13 +17,24 @@ enum Message {
 /// An async rusqlite connection.
 #[derive(Debug, Clone)]
 pub struct AsyncConnection {
-    tx: std::sync::mpsc::Sender<Message>,
+    inner: Arc<InnerAsyncConnection>,
 }
 
 impl AsyncConnection {
     /// Get a builder for an [`AsyncConnection`].
     pub fn builder() -> AsyncConnectionBuilder {
         AsyncConnectionBuilder::new()
+    }
+
+    /// Get a permit, if needed.
+    async fn get_permit(&self) -> Option<tokio::sync::SemaphorePermit> {
+        match self.inner.semaphore.as_ref() {
+            Some(semaphore) => {
+                // We never close the semaphore.
+                Some(semaphore.acquire().await.unwrap())
+            }
+            None => None,
+        }
     }
 
     /// Close the database.
@@ -35,25 +47,30 @@ impl AsyncConnection {
     /// the database will be closed no matter the value of the return.
     /// The return value will return errors that occured while closing.
     pub async fn close(&self) -> Result<(), Error> {
+        let permit = self.get_permit().await;
         let (tx, rx) = tokio::sync::oneshot::channel();
-        self.tx
+        self.inner
+            .tx
             .send(Message::Close { tx })
             .map_err(|_| Error::Aborted)?;
         rx.await.map_err(|_| Error::Aborted)??;
+        drop(permit);
+
         Ok(())
     }
 
-    /// Internal function for accessing the database.
-    fn access_internal<F, T>(
-        &self,
-        func: F,
-    ) -> Result<tokio::sync::oneshot::Receiver<Result<T, Error>>, Error>
+    /// Access the database.
+    ///
+    /// Note that dropping the returned future will not cancel the database access.
+    pub async fn access<F, T>(&self, func: F) -> Result<T, Error>
     where
         F: FnOnce(&mut rusqlite::Connection) -> T + Send + 'static,
         T: Send + 'static,
     {
+        let permit = self.get_permit().await;
         let (tx, rx) = tokio::sync::oneshot::channel();
-        self.tx
+        self.inner
+            .tx
             .send(Message::Access {
                 func: Box::new(move |connection| {
                     // TODO: Consider aborting if rx hung up.
@@ -66,31 +83,15 @@ impl AsyncConnection {
                 }),
             })
             .map_err(|_| Error::Aborted)?;
-
-        Ok(rx)
-    }
-
-    /// Access the database.
-    ///
-    /// Note that dropping the returned future will no cancel the database access.
-    pub async fn access<F, T>(&self, func: F) -> Result<T, Error>
-    where
-        F: FnOnce(&mut rusqlite::Connection) -> T + Send + 'static,
-        T: Send + 'static,
-    {
-        let rx = self.access_internal(func)?;
         let result = rx.await.map_err(|_| Error::Aborted)??;
-        Ok(result)
-    }
+        drop(permit);
 
-    /// Access the database from a blocking context.
-    pub fn blocking_access<F, T>(&self, func: F) -> Result<T, Error>
-    where
-        F: FnOnce(&mut rusqlite::Connection) -> T + Send + 'static,
-        T: Send + 'static,
-    {
-        let rx = self.access_internal(func)?;
-        let result = rx.blocking_recv().map_err(|_| Error::Aborted)??;
         Ok(result)
     }
+}
+
+#[derive(Debug)]
+struct InnerAsyncConnection {
+    tx: std::sync::mpsc::Sender<Message>,
+    semaphore: Option<tokio::sync::Semaphore>,
 }

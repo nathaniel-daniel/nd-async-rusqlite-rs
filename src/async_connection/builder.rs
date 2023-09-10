@@ -1,8 +1,10 @@
 use super::AsyncConnection;
+use super::InnerAsyncConnection;
 use super::Message;
 use crate::Error;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 /// A builder for an [`AsyncConnection`].
 #[derive(Debug)]
@@ -25,7 +27,15 @@ impl AsyncConnectionBuilder {
         let (connection_open_tx, connection_open_rx) = tokio::sync::oneshot::channel();
         std::thread::spawn(move || async_connection_thread_impl(rx, path, connection_open_tx));
 
-        (AsyncConnection { tx }, connection_open_rx)
+        (
+            AsyncConnection {
+                inner: Arc::new(InnerAsyncConnection {
+                    tx,
+                    semaphore: None,
+                }),
+            },
+            connection_open_rx,
+        )
     }
 
     /// Open the connection.
