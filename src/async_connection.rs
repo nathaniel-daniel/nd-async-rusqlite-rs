@@ -4,6 +4,7 @@ pub use self::builder::AsyncConnectionBuilder;
 use crate::Error;
 use crate::SyncWrapper;
 use std::sync::Arc;
+use tokio::sync::Semaphore;
 
 enum Message {
     Access {
@@ -93,5 +94,5 @@ impl AsyncConnection {
 #[derive(Debug)]
 struct InnerAsyncConnection {
     tx: std::sync::mpsc::Sender<Message>,
-    semaphore: Option<tokio::sync::Semaphore>,
+    semaphore: Option<Semaphore>,
 }

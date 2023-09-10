@@ -5,15 +5,27 @@ use crate::Error;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::sync::Semaphore;
 
 /// A builder for an [`AsyncConnection`].
 #[derive(Debug)]
-pub struct AsyncConnectionBuilder {}
+pub struct AsyncConnectionBuilder {
+    /// The maximum number of concurrent requests.
+    pub concurrent_requests: Option<usize>,
+}
 
 impl AsyncConnectionBuilder {
     /// Create an [`AsyncConnectionBuilder`] with default settings.
     pub fn new() -> Self {
-        Self {}
+        Self {
+            concurrent_requests: None,
+        }
+    }
+
+    /// Set the number of concurrent database requests.
+    pub fn concurrent_requests(&mut self, concurrent_requests: usize) -> &mut Self {
+        self.concurrent_requests = Some(concurrent_requests);
+        self
     }
 
     fn open_internal(
@@ -23,16 +35,16 @@ impl AsyncConnectionBuilder {
         AsyncConnection,
         tokio::sync::oneshot::Receiver<Result<(), rusqlite::Error>>,
     ) {
+        // Do this first, this can panic if concurrent_requests is too large.
+        let semaphore = self.concurrent_requests.map(Semaphore::new);
+
         let (tx, rx) = std::sync::mpsc::channel::<Message>();
         let (connection_open_tx, connection_open_rx) = tokio::sync::oneshot::channel();
         std::thread::spawn(move || async_connection_thread_impl(rx, path, connection_open_tx));
 
         (
             AsyncConnection {
-                inner: Arc::new(InnerAsyncConnection {
-                    tx,
-                    semaphore: None,
-                }),
+                inner: Arc::new(InnerAsyncConnection { tx, semaphore }),
             },
             connection_open_rx,
         )
