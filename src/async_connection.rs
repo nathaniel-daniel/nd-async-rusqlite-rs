@@ -3,8 +3,6 @@ use crate::SyncWrapper;
 use std::path::Path;
 use std::path::PathBuf;
 
-const DEFAULT_MESSAGE_CHANNEL_CAPACITY: usize = 32;
-
 enum Message {
     Access {
         func: Box<dyn FnOnce(&mut rusqlite::Connection) + Send + 'static>,
@@ -17,7 +15,7 @@ enum Message {
 /// An async rusqlite connection.
 #[derive(Debug, Clone)]
 pub struct AsyncConnection {
-    tx: tokio::sync::mpsc::Sender<Message>,
+    tx: std::sync::mpsc::Sender<Message>,
 }
 
 impl AsyncConnection {
@@ -39,7 +37,6 @@ impl AsyncConnection {
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.tx
             .send(Message::Close { tx })
-            .await
             .map_err(|_| Error::Aborted)?;
         rx.await.map_err(|_| Error::Aborted)??;
         Ok(())
@@ -63,7 +60,6 @@ impl AsyncConnection {
                     let _ = tx.send(result).is_ok();
                 }),
             })
-            .await
             .map_err(|_| Error::Aborted)?;
 
         let result = rx.await.map_err(|_| Error::Aborted)??;
@@ -79,7 +75,7 @@ impl AsyncConnection {
     {
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.tx
-            .blocking_send(Message::Access {
+            .send(Message::Access {
                 func: Box::new(move |connection| {
                     let result =
                         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| func(connection)))
@@ -97,23 +93,12 @@ impl AsyncConnection {
 
 /// A builder for an [`AsyncConnection`].
 #[derive(Debug)]
-pub struct AsyncConnectionBuilder {
-    /// The message channel capacity for the background database thread.
-    pub message_channel_capacity: usize,
-}
+pub struct AsyncConnectionBuilder {}
 
 impl AsyncConnectionBuilder {
     /// Create an [`AsyncConnectionBuilder`] with default settings.
     pub fn new() -> Self {
-        Self {
-            message_channel_capacity: DEFAULT_MESSAGE_CHANNEL_CAPACITY,
-        }
-    }
-
-    /// Set the message channel capacity.
-    pub fn message_channel_capacity(&mut self, capacity: usize) -> &mut Self {
-        self.message_channel_capacity = capacity;
-        self
+        Self {}
     }
 
     fn open_internal(
@@ -123,7 +108,7 @@ impl AsyncConnectionBuilder {
         AsyncConnection,
         tokio::sync::oneshot::Receiver<Result<(), rusqlite::Error>>,
     ) {
-        let (tx, mut rx) = tokio::sync::mpsc::channel::<Message>(self.message_channel_capacity);
+        let (tx, rx) = std::sync::mpsc::channel::<Message>();
         let (connection_open_tx, connection_open_rx) = tokio::sync::oneshot::channel();
         std::thread::spawn(move || {
             let mut connection = match rusqlite::Connection::open(path) {
@@ -143,10 +128,9 @@ impl AsyncConnectionBuilder {
             };
 
             let mut close_tx = None;
-            while let Some(message) = rx.blocking_recv() {
+            while let Ok(message) = rx.recv() {
                 match message {
                     Message::Close { tx } => {
-                        rx.close();
                         close_tx = Some(tx);
                         break;
                     }
@@ -156,9 +140,10 @@ impl AsyncConnectionBuilder {
                 }
             }
 
-            // Drain messages, dropping them without sending a response.
+            // Drop rx.
+            // This will abort all queued messages, dropping them without sending a response.
             // This is considered aborting the request.
-            while let Some(_message) = rx.blocking_recv() {}
+            drop(rx);
 
             let result = connection.close();
             if let Some(tx) = close_tx {

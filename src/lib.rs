@@ -77,7 +77,6 @@ mod test {
         std::fs::create_dir_all(temp_path).expect("failed to create temp dir");
 
         let connection_error = AsyncConnection::builder()
-            .message_channel_capacity(128)
             .open(".")
             .await
             .expect_err("connection should not open on a directory");
