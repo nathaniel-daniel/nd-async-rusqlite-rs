@@ -90,9 +90,9 @@ mod test {
         let connection_path = temp_path.join("sanity.db");
         match std::fs::remove_file(&connection_path) {
             Ok(()) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Err(e) => {
-                Result::<(), std::io::Error>::Err(e).expect("failed to remove old database");
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                panic!("failed to remove old database: {error:?}");
             }
         }
 
