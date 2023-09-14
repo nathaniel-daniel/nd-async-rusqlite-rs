@@ -28,6 +28,7 @@ impl AsyncConnectionBuilder {
         self
     }
 
+    /// The internal open function.
     fn open_internal(
         &self,
         path: PathBuf,

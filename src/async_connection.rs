@@ -29,6 +29,11 @@ impl AsyncConnection {
 
     /// Get a permit, if needed.
     async fn get_permit(&self) -> Option<tokio::sync::SemaphorePermit> {
+        // TODO: How should a no-permit situation be handled?
+        // Should we return an error to the caller, or simply wait?
+        //
+        // The benefit of waiting is that the case where a loop creates requests without awaiting them can be limitied by waiting, here.
+        // The benefit of returning an error is handling high-load situations by returning errors to requests that cannot be fufilled in a timely manner.
         match self.inner.semaphore.as_ref() {
             Some(semaphore) => {
                 // We never close the semaphore.
@@ -68,6 +73,9 @@ impl AsyncConnection {
         F: FnOnce(&mut rusqlite::Connection) -> T + Send + 'static,
         T: Send + 'static,
     {
+        // TODO: We should make this a function and have it return a named Future.
+        // This will allow users to avoid spawning a seperate task for each database call.
+
         let permit = self.get_permit().await;
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.inner
