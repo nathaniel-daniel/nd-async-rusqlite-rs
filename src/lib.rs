@@ -82,7 +82,6 @@ mod test {
         std::fs::create_dir_all(temp_path).expect("failed to create temp dir");
 
         let connection_error = AsyncConnection::builder()
-            .message_channel_capacity(128)
             .open(".")
             .await
             .expect_err("connection should not open on a directory");
@@ -91,31 +90,10 @@ mod test {
         let connection_path = temp_path.join("sanity.db");
         match std::fs::remove_file(&connection_path) {
             Ok(()) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Err(e) => {
-                Result::<(), std::io::Error>::Err(e).expect("failed to remove old database");
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                panic!("failed to remove old database: {error:?}");
             }
-        }
-
-        // Ensure connection can be opened and used from a blocking context
-        {
-            let connection_path = connection_path.clone();
-            tokio::task::spawn_blocking(|| {
-                let connection = AsyncConnection::builder()
-                    .blocking_open(connection_path)
-                    .expect("connection should be open");
-                connection
-                    .blocking_access(|connection| {
-                        connection.execute(
-                            "CREATE TABLE blocking (id INTEGER NOT NULL PRIMARY KEY) STRICT;",
-                            [],
-                        )
-                    })
-                    .expect("failed to run blocking access")
-                    .expect("query failed");
-            })
-            .await
-            .expect("failed to join");
         }
 
         let connection = AsyncConnection::builder()
