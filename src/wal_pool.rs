@@ -106,6 +106,7 @@ impl WalPool {
                 .await
                 .map_err(|_| Error::Aborted)
                 .and_then(std::convert::identity);
+
             if let Err(close_error) = close_result {
                 last_error = Err(close_error);
             }
@@ -246,6 +247,7 @@ impl WalPoolBuilder {
         let read_semaphore = self.max_queued_reads.map(Semaphore::new);
         let write_semaphore = self.max_queued_writes.map(Semaphore::new);
 
+        // Bring connections up all at once for speed.
         let (writer_tx, writer_rx) = crossbeam_channel::unbounded::<Message>();
         let (open_write_tx, open_write_rx) = tokio::sync::oneshot::channel();
         {
@@ -254,7 +256,6 @@ impl WalPoolBuilder {
                 write_connection_thread_impl(writer_rx, path, open_write_tx)
             });
         }
-
         let (readers_tx, readers_rx) = crossbeam_channel::unbounded::<Message>();
         let mut open_read_rx_list = Vec::with_capacity(self.num_read_connections);
         for _ in 0..self.num_read_connections {
@@ -266,7 +267,10 @@ impl WalPoolBuilder {
             });
             open_read_rx_list.push(open_read_rx);
         }
+        drop(readers_rx);
 
+        // Create the wal pool here.
+        // This lets us at least attempt to close it later.
         let wal_pool = WalPool {
             inner: Arc::new(InnerWalPool {
                 writer_tx,
@@ -359,5 +363,59 @@ fn write_connection_thread_impl(
         let _ = tx
             .send(result.map_err(|(_connection, error)| Error::from(error)))
             .is_ok();
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[tokio::test]
+    async fn sanity() {
+        let temp_path = Path::new("test-temp");
+        std::fs::create_dir_all(temp_path).expect("failed to create temp dir");
+
+        let connection_error = WalPool::builder()
+            .open(".")
+            .await
+            .expect_err("pool should not open on a directory");
+        assert!(matches!(connection_error, Error::Rusqlite(_)));
+
+        let connection_path = temp_path.join("wal-pool-sanity.db");
+        match std::fs::remove_file(&connection_path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                panic!("failed to remove old database: {error:?}");
+            }
+        }
+
+        let connection = WalPool::builder()
+            .open(connection_path)
+            .await
+            .expect("connection should be open");
+
+        // Ensure connection is clone
+        let _connection1 = connection.clone();
+
+        // Ensure write connection survives panic
+        let panic_error = connection
+            .write(|_connection| panic!("the connection should survive the panic"))
+            .await
+            .expect_err("the access should have failed");
+
+        assert!(matches!(panic_error, Error::AccessPanic(_)));
+
+        let setup_sql = "PRAGMA foreign_keys = ON; CREATE TABLE USERS (id INTEGER PRIMARY KEY, first_name TEXT NOT NULL, last_name TEXT NOT NULL) STRICT;";
+        connection
+            .write(|connection| connection.execute_batch(setup_sql))
+            .await
+            .expect("failed to create tables")
+            .expect("failed to execute");
+
+        connection
+            .close()
+            .await
+            .expect("an error occured while closing");
     }
 }
