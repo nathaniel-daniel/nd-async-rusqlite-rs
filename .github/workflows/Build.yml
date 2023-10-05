@@ -60,7 +60,13 @@ jobs:
           key: ${{ runner.os }}-build-cargo-${{ hashFiles('**/Cargo.lock') }}
           
       - name: Build
-        run: cargo build --workspace --verbose
+        run: cargo build --features=bundled --workspace --verbose
 
       - name: Run Tests
         run: cargo test --features=bundled --workspace --verbose
+        
+      - name: Build (with wal-pool)
+        run: cargo build --features=bundled,wal-pool --workspace --verbose
+
+      - name: Run Tests (with wal-pool)
+        run: cargo test --features=bundled,wal-pool --workspace --verbose
