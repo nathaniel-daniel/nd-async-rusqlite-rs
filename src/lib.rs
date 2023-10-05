@@ -55,18 +55,17 @@ mod test {
     use super::*;
     use std::path::Path;
 
-    const fn _assert_send<T>()
+    pub const fn _assert_send<T>()
     where
         T: Send,
     {
     }
-    const fn _assert_sync<T>()
+    pub const fn _assert_sync<T>()
     where
         T: Sync,
     {
     }
-
-    const fn _assert_static_lifetime<T>()
+    pub const fn _assert_static_lifetime<T>()
     where
         T: 'static,
     {
