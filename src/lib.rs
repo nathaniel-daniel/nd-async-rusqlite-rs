@@ -1,12 +1,19 @@
 mod async_connection;
 mod sync_wrapper;
+#[cfg(feature = "wal-pool")]
+mod wal_pool;
 
 pub use self::async_connection::AsyncConnection;
 pub use self::async_connection::AsyncConnectionBuilder;
 pub use self::sync_wrapper::SyncWrapper;
+#[cfg(feature = "wal-pool")]
+pub use self::wal_pool::WalPool;
+#[cfg(feature = "wal-pool")]
+pub use self::wal_pool::WalPoolBuilder;
 pub use rusqlite;
 
 /// The library error type
+#[non_exhaustive]
 #[derive(Debug)]
 pub enum Error {
     /// A rusqlite error
