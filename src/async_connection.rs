@@ -104,3 +104,18 @@ struct InnerAsyncConnection {
     tx: std::sync::mpsc::Sender<Message>,
     semaphore: Option<Semaphore>,
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::test::_assert_send;
+    use crate::test::_assert_sync;
+
+    const _MESSAGE_IS_SEND: () = _assert_send::<Message>();
+
+    const _INNER_ASYNC_CONNECTION_IS_SEND: () = _assert_send::<InnerAsyncConnection>();
+    const _INNER_ASYNC_CONNECTION_IS_SYNC: () = _assert_sync::<InnerAsyncConnection>();
+
+    const _ASYNC_CONNECTION_IS_SEND: () = _assert_send::<AsyncConnection>();
+    const _ASYNC_CONNECTION_IS_SYNC: () = _assert_sync::<AsyncConnection>();
+}
