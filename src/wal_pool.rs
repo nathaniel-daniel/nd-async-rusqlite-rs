@@ -247,23 +247,40 @@ impl WalPoolBuilder {
         let read_semaphore = self.max_queued_reads.map(Semaphore::new);
         let write_semaphore = self.max_queued_writes.map(Semaphore::new);
 
-        // Bring connections up all at once for speed.
-        let (writer_tx, writer_rx) = crossbeam_channel::unbounded::<Message>();
-        let (open_write_tx, open_write_rx) = tokio::sync::oneshot::channel();
-        {
+        // Only the writer can create the database, make sure it works before doing anything else.
+        let writer_tx = {
+            let (writer_tx, writer_rx) = crossbeam_channel::unbounded::<Message>();
             let path = path.clone();
+            let flags = rusqlite::OpenFlags::default();
+            let (open_write_tx, open_write_rx) = tokio::sync::oneshot::channel();
             std::thread::spawn(move || {
-                write_connection_thread_impl(writer_rx, path, open_write_tx)
+                connection_thread_impl(writer_rx, path, flags, open_write_tx)
             });
-        }
+
+            open_write_rx
+                .await
+                .map_err(|_| Error::Aborted)
+                .and_then(|result| result.map_err(Error::Rusqlite))?;
+
+            writer_tx
+        };
+
+        // Bring reader connections up all at once for speed.
         let (readers_tx, readers_rx) = crossbeam_channel::unbounded::<Message>();
         let mut open_read_rx_list = Vec::with_capacity(self.num_read_connections);
         for _ in 0..self.num_read_connections {
             let readers_rx = readers_rx.clone();
             let path = path.clone();
+
+            // We cannot allow writing in reader connections, forcibly set bits.
+            let mut flags = rusqlite::OpenFlags::default();
+            flags.remove(rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE);
+            flags.remove(rusqlite::OpenFlags::SQLITE_OPEN_CREATE);
+            flags.insert(rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY);
+
             let (open_read_tx, open_read_rx) = tokio::sync::oneshot::channel();
             std::thread::spawn(move || {
-                write_connection_thread_impl(readers_rx, path.clone(), open_read_tx)
+                connection_thread_impl(readers_rx, path, flags, open_read_tx)
             });
             open_read_rx_list.push(open_read_rx);
         }
@@ -282,13 +299,6 @@ impl WalPoolBuilder {
         };
 
         let mut last_error = Ok(());
-        if let Err(error) = open_write_rx
-            .await
-            .map_err(|_| Error::Aborted)
-            .and_then(|result| result.map_err(Error::Rusqlite))
-        {
-            last_error = Err(error);
-        }
 
         for open_read_rx in open_read_rx_list {
             if let Err(error) = open_read_rx
@@ -319,12 +329,13 @@ impl Default for WalPoolBuilder {
 }
 
 /// The impl for the connection background thread.
-fn write_connection_thread_impl(
+fn connection_thread_impl(
     rx: crossbeam_channel::Receiver<Message>,
     path: PathBuf,
+    flags: rusqlite::OpenFlags,
     connection_open_tx: tokio::sync::oneshot::Sender<rusqlite::Result<()>>,
 ) {
-    let mut connection = match rusqlite::Connection::open(path) {
+    let mut connection = match rusqlite::Connection::open_with_flags(path, flags) {
         Ok(connection) => {
             // Check if the user cancelled the opening of the database connection and return early if needed.
             if connection_open_tx.send(Ok(())).is_err() {
@@ -412,6 +423,13 @@ mod test {
             .await
             .expect("failed to create tables")
             .expect("failed to execute");
+
+        // Reader should not be able to write
+        connection
+            .read(|connection| connection.execute_batch(setup_sql))
+            .await
+            .expect("failed to access")
+            .expect_err("write should have failed");
 
         connection
             .close()
