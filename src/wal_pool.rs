@@ -380,8 +380,31 @@ fn connection_thread_impl(
         }
     };
 
-    // TODO: If we are the writer, we should forcibly enable WAL mode.
     // If WAL mode fails to enable, we should exit.
+    // This abstraction is fairly worthless outside of WAL mode.
+    {
+        let journal_mode_result =
+            connection.pragma_update_and_check(None, "journal_mode", "WAL", |row| {
+                row.get::<_, String>(0)
+            });
+
+        let journal_mode = match journal_mode_result {
+            Ok(journal_mode) => journal_mode,
+            Err(error) => {
+                // Don't care if we succed since we should exit in either case.
+                let _ = connection_open_tx.send(Err(Error::Rusqlite(error))).is_ok();
+                return;
+            }
+        };
+
+        if journal_mode != "wal" {
+            // Don't care if we succed since we should exit in either case.
+            let _ = connection_open_tx
+                .send(Err(Error::InvalidJournalMode(journal_mode)))
+                .is_ok();
+            return;
+        }
+    }
 
     if let Some(init_fn) = init_fn {
         let init_fn = std::panic::AssertUnwindSafe(|| init_fn(&mut connection));
@@ -455,7 +478,7 @@ mod test {
 
         let writer_init_fn_called = Arc::new(AtomicBool::new(false));
         let num_reader_init_fn_called = Arc::new(AtomicUsize::new(0));
-        let mut num_read_connections = 4;
+        let num_read_connections = 4;
         let connection = {
             let writer_init_fn_called = writer_init_fn_called.clone();
             let num_reader_init_fn_called = num_reader_init_fn_called.clone();
