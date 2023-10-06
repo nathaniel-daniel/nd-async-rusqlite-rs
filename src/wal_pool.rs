@@ -76,25 +76,6 @@ impl WalPool {
     pub async fn close(&self) -> Result<(), Error> {
         let mut last_error = Ok(());
 
-        // Close the writer
-        let close_writer_result = async {
-            let permit = self.get_write_permit().await;
-            let (tx, rx) = tokio::sync::oneshot::channel();
-            self.inner
-                .writer_tx
-                .send(Message::Close { tx })
-                .map_err(|_| Error::Aborted)?;
-            rx.await.map_err(|_| Error::Aborted)??;
-            drop(permit);
-
-            Ok(())
-        }
-        .await;
-
-        if let Err(close_writer_error) = close_writer_result {
-            last_error = Err(close_writer_error);
-        }
-
         loop {
             let permit = self.get_write_permit().await;
             let (tx, rx) = tokio::sync::oneshot::channel();
@@ -115,6 +96,25 @@ impl WalPool {
             }
 
             drop(permit);
+        }
+
+        // Close the writer
+        let close_writer_result = async {
+            let permit = self.get_write_permit().await;
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            self.inner
+                .writer_tx
+                .send(Message::Close { tx })
+                .map_err(|_| Error::Aborted)?;
+            rx.await.map_err(|_| Error::Aborted)??;
+            drop(permit);
+
+            Ok(())
+        }
+        .await;
+
+        if let Err(close_writer_error) = close_writer_result {
+            last_error = Err(close_writer_error);
         }
 
         last_error
