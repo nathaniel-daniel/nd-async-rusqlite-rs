@@ -5,6 +5,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 
+type ConnectionInitFn =
+    Arc<dyn Fn(&mut rusqlite::Connection) -> Result<(), Error> + Send + Sync + 'static>;
+
 /// The channel message
 enum Message {
     Access {
@@ -204,6 +207,12 @@ pub struct WalPoolBuilder {
 
     /// The number of read connections
     pub num_read_connections: usize,
+
+    /// A function to be called to initialize each reader.
+    pub reader_init_fn: Option<ConnectionInitFn>,
+
+    /// A function to be called to initialize the writer.
+    pub writer_init_fn: Option<ConnectionInitFn>,
 }
 
 impl WalPoolBuilder {
@@ -215,6 +224,9 @@ impl WalPoolBuilder {
             max_queued_writes: Some(32),
 
             num_read_connections: 4,
+
+            writer_init_fn: None,
+            reader_init_fn: None,
         }
     }
 
@@ -236,6 +248,24 @@ impl WalPoolBuilder {
         self
     }
 
+    /// Add a function to be called when the writer connection initializes.
+    pub fn writer_init_fn<F>(&mut self, writer_init_fn: F) -> &mut Self
+    where
+        F: Fn(&mut rusqlite::Connection) -> Result<(), Error> + Send + Sync + 'static,
+    {
+        self.writer_init_fn = Some(Arc::new(writer_init_fn));
+        self
+    }
+
+    /// Add a function to be called when a reader connection initializes.
+    pub fn reader_init_fn<F>(&mut self, reader_init_fn: F) -> &mut Self
+    where
+        F: Fn(&mut rusqlite::Connection) -> Result<(), Error> + Send + Sync + 'static,
+    {
+        self.reader_init_fn = Some(Arc::new(reader_init_fn));
+        self
+    }
+
     /// Open the pool.
     pub async fn open<P>(&self, path: P) -> Result<WalPool, Error>
     where
@@ -252,15 +282,16 @@ impl WalPoolBuilder {
             let (writer_tx, writer_rx) = crossbeam_channel::unbounded::<Message>();
             let path = path.clone();
             let flags = rusqlite::OpenFlags::default();
+            let writer_init_fn = self.writer_init_fn.clone();
             let (open_write_tx, open_write_rx) = tokio::sync::oneshot::channel();
             std::thread::spawn(move || {
-                connection_thread_impl(writer_rx, path, flags, open_write_tx)
+                connection_thread_impl(writer_rx, path, flags, writer_init_fn, open_write_tx)
             });
 
             open_write_rx
                 .await
                 .map_err(|_| Error::Aborted)
-                .and_then(|result| result.map_err(Error::Rusqlite))?;
+                .and_then(std::convert::identity)?;
 
             writer_tx
         };
@@ -278,9 +309,11 @@ impl WalPoolBuilder {
             flags.remove(rusqlite::OpenFlags::SQLITE_OPEN_CREATE);
             flags.insert(rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY);
 
+            let reader_init_fn = self.reader_init_fn.clone();
+
             let (open_read_tx, open_read_rx) = tokio::sync::oneshot::channel();
             std::thread::spawn(move || {
-                connection_thread_impl(readers_rx, path, flags, open_read_tx)
+                connection_thread_impl(readers_rx, path, flags, reader_init_fn, open_read_tx)
             });
             open_read_rx_list.push(open_read_rx);
         }
@@ -304,7 +337,7 @@ impl WalPoolBuilder {
             if let Err(error) = open_read_rx
                 .await
                 .map_err(|_| Error::Aborted)
-                .and_then(|result| result.map_err(Error::Rusqlite))
+                .and_then(std::convert::identity)
             {
                 last_error = Err(error);
             }
@@ -333,23 +366,39 @@ fn connection_thread_impl(
     rx: crossbeam_channel::Receiver<Message>,
     path: PathBuf,
     flags: rusqlite::OpenFlags,
-    connection_open_tx: tokio::sync::oneshot::Sender<rusqlite::Result<()>>,
+    init_fn: Option<ConnectionInitFn>,
+    connection_open_tx: tokio::sync::oneshot::Sender<Result<(), Error>>,
 ) {
-    let mut connection = match rusqlite::Connection::open_with_flags(path, flags) {
-        Ok(connection) => {
-            // Check if the user cancelled the opening of the database connection and return early if needed.
-            if connection_open_tx.send(Ok(())).is_err() {
-                return;
-            }
-
-            connection
-        }
+    // Open the database, reporting errors as necessary.
+    let open_result = rusqlite::Connection::open_with_flags(path, flags);
+    let mut connection = match open_result {
+        Ok(connection) => connection,
         Err(error) => {
             // Don't care if we succed since we should exit in either case.
-            let _ = connection_open_tx.send(Err(error)).is_ok();
+            let _ = connection_open_tx.send(Err(Error::Rusqlite(error))).is_ok();
             return;
         }
     };
+
+    // TODO: If we are the writer, we should forcibly enable WAL mode.
+    // If WAL mode fails to enable, we should exit.
+
+    if let Some(init_fn) = init_fn {
+        let init_fn = std::panic::AssertUnwindSafe(|| init_fn(&mut connection));
+        let init_result = std::panic::catch_unwind(init_fn);
+        let init_result =
+            init_result.map_err(|panic_data| Error::AccessPanic(SyncWrapper::new(panic_data)));
+        if let Err(error) = init_result {
+            // Don't care if we succeed since we should exit in either case.
+            let _ = connection_open_tx.send(Err(error)).is_ok();
+            return;
+        }
+    }
+
+    // Check if the user cancelled the opening of the database connection and return early if needed.
+    if connection_open_tx.send(Ok(())).is_err() {
+        return;
+    }
 
     let mut close_tx = None;
     for message in rx.iter() {
@@ -380,6 +429,9 @@ fn connection_thread_impl(
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
 
     #[tokio::test]
     async fn sanity() {
@@ -401,10 +453,31 @@ mod test {
             }
         }
 
-        let connection = WalPool::builder()
-            .open(connection_path)
-            .await
-            .expect("connection should be open");
+        let writer_init_fn_called = Arc::new(AtomicBool::new(false));
+        let num_reader_init_fn_called = Arc::new(AtomicUsize::new(0));
+        let mut num_read_connections = 4;
+        let connection = {
+            let writer_init_fn_called = writer_init_fn_called.clone();
+            let num_reader_init_fn_called = num_reader_init_fn_called.clone();
+            WalPool::builder()
+                .num_read_connections(num_read_connections)
+                .writer_init_fn(move |_connection| {
+                    writer_init_fn_called.store(true, Ordering::SeqCst);
+                    Ok(())
+                })
+                .reader_init_fn(move |_connection| {
+                    num_reader_init_fn_called.fetch_add(1, Ordering::SeqCst);
+                    Ok(())
+                })
+                .open(connection_path)
+                .await
+                .expect("connection should be open")
+        };
+        let writer_init_fn_called = writer_init_fn_called.load(Ordering::SeqCst);
+        let num_reader_init_fn_called = num_reader_init_fn_called.load(Ordering::SeqCst);
+
+        assert!(writer_init_fn_called);
+        assert!(num_reader_init_fn_called == num_read_connections);
 
         // Ensure connection is clone
         let _connection1 = connection.clone();
