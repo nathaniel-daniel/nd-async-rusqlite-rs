@@ -361,6 +361,21 @@ impl Default for WalPoolBuilder {
     }
 }
 
+/// Set the journal_mode to WAL.
+///
+/// # References
+/// * https://www.sqlite.org/wal.html#activating_and_configuring_wal_mode
+fn set_wal_journal_mode(connection: &mut rusqlite::Connection) -> Result<(), Error> {
+    let journal_mode: String =
+        connection.pragma_update_and_check(None, "journal_mode", "WAL", |row| row.get(0))?;
+
+    if journal_mode != "wal" {
+        return Err(Error::InvalidJournalMode(journal_mode));
+    }
+
+    Ok(())
+}
+
 /// The impl for the connection background thread.
 fn connection_thread_impl(
     rx: crossbeam_channel::Receiver<Message>,
@@ -382,30 +397,13 @@ fn connection_thread_impl(
 
     // If WAL mode fails to enable, we should exit.
     // This abstraction is fairly worthless outside of WAL mode.
-    {
-        let journal_mode_result =
-            connection.pragma_update_and_check(None, "journal_mode", "WAL", |row| {
-                row.get::<_, String>(0)
-            });
-
-        let journal_mode = match journal_mode_result {
-            Ok(journal_mode) => journal_mode,
-            Err(error) => {
-                // Don't care if we succed since we should exit in either case.
-                let _ = connection_open_tx.send(Err(Error::Rusqlite(error))).is_ok();
-                return;
-            }
-        };
-
-        if journal_mode != "wal" {
-            // Don't care if we succed since we should exit in either case.
-            let _ = connection_open_tx
-                .send(Err(Error::InvalidJournalMode(journal_mode)))
-                .is_ok();
-            return;
-        }
+    if let Err(error) = set_wal_journal_mode(&mut connection) {
+        // Don't care if we succed since we should exit in either case.
+        let _ = connection_open_tx.send(Err(error)).is_ok();
+        return;
     }
 
+    // Run init fn.
     if let Some(init_fn) = init_fn {
         let init_fn = std::panic::AssertUnwindSafe(|| init_fn(&mut connection));
         let init_result = std::panic::catch_unwind(init_fn);
@@ -492,7 +490,7 @@ mod test {
                     num_reader_init_fn_called.fetch_add(1, Ordering::SeqCst);
                     Ok(())
                 })
-                .open(connection_path)
+                .open(&connection_path)
                 .await
                 .expect("connection should be open")
         };
@@ -531,5 +529,23 @@ mod test {
             .close()
             .await
             .expect("an error occured while closing");
+
+        WalPool::builder()
+            .writer_init_fn(move |_connection| {
+                panic!("user panic");
+                Ok(())
+            })
+            .open(&connection_path)
+            .await
+            .expect_err("panic should become an error");
+
+        WalPool::builder()
+            .reader_init_fn(move |_connection| {
+                panic!("user panic");
+                Ok(())
+            })
+            .open(&connection_path)
+            .await
+            .expect_err("panic should become an error");
     }
 }
