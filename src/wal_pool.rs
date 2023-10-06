@@ -276,6 +276,7 @@ impl WalPoolBuilder {
         // Do this first, this can panic if values are too large.
         let read_semaphore = self.max_queued_reads.map(Semaphore::new);
         let write_semaphore = self.max_queued_writes.map(Semaphore::new);
+        let num_read_connections = self.num_read_connections;
 
         // Only the writer can create the database, make sure it works before doing anything else.
         let writer_tx = {
@@ -298,8 +299,8 @@ impl WalPoolBuilder {
 
         // Bring reader connections up all at once for speed.
         let (readers_tx, readers_rx) = crossbeam_channel::unbounded::<Message>();
-        let mut open_read_rx_list = Vec::with_capacity(self.num_read_connections);
-        for _ in 0..self.num_read_connections {
+        let mut open_read_rx_list = Vec::with_capacity(num_read_connections);
+        for _ in 0..num_read_connections {
             let readers_rx = readers_rx.clone();
             let path = path.clone();
 
@@ -533,7 +534,6 @@ mod test {
         WalPool::builder()
             .writer_init_fn(move |_connection| {
                 panic!("user panic");
-                Ok(())
             })
             .open(&connection_path)
             .await
@@ -542,7 +542,6 @@ mod test {
         WalPool::builder()
             .reader_init_fn(move |_connection| {
                 panic!("user panic");
-                Ok(())
             })
             .open(&connection_path)
             .await
