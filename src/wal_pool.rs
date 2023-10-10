@@ -201,6 +201,7 @@ mod test {
     use std::sync::atomic::AtomicBool;
     use std::sync::atomic::AtomicUsize;
     use std::sync::atomic::Ordering;
+    use std::path::Path;
 
     #[tokio::test]
     async fn dir() {
