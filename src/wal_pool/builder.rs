@@ -8,6 +8,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 
+const DEFAULT_MAX_QUEUED_READS: Option<usize> = Some(128);
+const DEFAULT_MAX_QUEUED_WRITES: Option<usize> = Some(32);
+const DEFAULT_NUM_READ_CONNECTIONS: usize = 4;
+
 type ConnectionInitFn =
     Arc<dyn Fn(&mut rusqlite::Connection) -> Result<(), Error> + Send + Sync + 'static>;
 
@@ -34,10 +38,10 @@ impl WalPoolBuilder {
     pub fn new() -> Self {
         // TODO: Try to find some sane defaults experimentally.
         Self {
-            max_queued_reads: Some(128),
-            max_queued_writes: Some(32),
+            max_queued_reads: DEFAULT_MAX_QUEUED_READS,
+            max_queued_writes: DEFAULT_MAX_QUEUED_WRITES,
 
-            num_read_connections: 4,
+            num_read_connections: DEFAULT_NUM_READ_CONNECTIONS,
 
             writer_init_fn: None,
             reader_init_fn: None,
@@ -45,18 +49,24 @@ impl WalPoolBuilder {
     }
 
     /// Set the maximum number of queued reads.
+    ///
+    /// This must be greater than 0.
     pub fn max_queued_reads(&mut self, max_queued_reads: Option<usize>) -> &mut Self {
         self.max_queued_reads = max_queued_reads;
         self
     }
 
     /// Set the maximum number of queued writes.
+    ///
+    /// This must be greater than 0.
     pub fn max_queued_writes(&mut self, max_queued_writes: Option<usize>) -> &mut Self {
         self.max_queued_writes = max_queued_writes;
         self
     }
 
     /// Set the number of read connections.
+    ///
+    /// This must be greater than 0.
     pub fn num_read_connections(&mut self, num_read_connections: usize) -> &mut Self {
         self.num_read_connections = num_read_connections;
         self
@@ -87,12 +97,13 @@ impl WalPoolBuilder {
     {
         let path = path.as_ref().to_path_buf();
 
+        // TODO: Validate these values are not 0.
         // Do this first, this can panic if values are too large.
         let read_semaphore = self.max_queued_reads.map(Semaphore::new);
         let write_semaphore = self.max_queued_writes.map(Semaphore::new);
         let num_read_connections = self.num_read_connections;
 
-        // Only the writer can create the database, make sure it works before doing anything else.
+        // Only the writer can create the database, make sure it does so before doing anything else.
         let writer_tx = {
             let (writer_tx, writer_rx) = crossbeam_channel::unbounded::<Message>();
             let path = path.clone();
