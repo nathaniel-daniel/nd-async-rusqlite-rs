@@ -1,12 +1,19 @@
 mod async_connection;
 mod sync_wrapper;
+#[cfg(feature = "wal-pool")]
+mod wal_pool;
 
 pub use self::async_connection::AsyncConnection;
 pub use self::async_connection::AsyncConnectionBuilder;
 pub use self::sync_wrapper::SyncWrapper;
+#[cfg(feature = "wal-pool")]
+pub use self::wal_pool::WalPool;
+#[cfg(feature = "wal-pool")]
+pub use self::wal_pool::WalPoolBuilder;
 pub use rusqlite;
 
 /// The library error type
+#[non_exhaustive]
 #[derive(Debug)]
 pub enum Error {
     /// A rusqlite error
@@ -22,6 +29,10 @@ pub enum Error {
     /// You can re-throw the panic data.
     /// The background thread is still alive.
     AccessPanic(SyncWrapper<Box<dyn std::any::Any + Send + 'static>>),
+
+    /// The WalPool attempted to put the database into WAL mode, but failed.
+    #[cfg(feature = "wal-pool")]
+    InvalidJournalMode(String),
 }
 
 impl std::fmt::Display for Error {
@@ -30,6 +41,14 @@ impl std::fmt::Display for Error {
             Self::Rusqlite(error) => error.fmt(f),
             Self::Aborted => "the connection thread aborted the request".fmt(f),
             Self::AccessPanic(_) => "a connection access panicked".fmt(f),
+
+            #[cfg(feature = "wal-pool")]
+            Self::InvalidJournalMode(journal_mode) => {
+                write!(
+                    f,
+                    "failed to set journal_mode to WAL, journal_mode is \"{journal_mode}\""
+                )
+            }
         }
     }
 }
@@ -40,6 +59,9 @@ impl std::error::Error for Error {
             Self::Rusqlite(error) => Some(error),
             Self::Aborted => None,
             Self::AccessPanic(_) => None,
+
+            #[cfg(feature = "wal-pool")]
+            Self::InvalidJournalMode(_) => None,
         }
     }
 }
