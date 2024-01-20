@@ -48,8 +48,10 @@ async fn main() {
 ## Features
 | Name    | Description                       |
 |---------|-----------------------------------|
+| backup  | Enable rusqlite's backup feature  |
 | bundled | Enable rusqlite's bundled feature |
 | time    | Enable rusqlite's time feature    |
+| trace   | Enable rusqlite's trace feature   |
 | url     | Enable rusqlite's url feature     |
 
 ## License
