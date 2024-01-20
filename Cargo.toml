@@ -22,8 +22,9 @@ bundled = ["rusqlite/bundled"]
 time = ["rusqlite/time"]
 
 # Activate the rusqlite "trace" feature
+trace = ["rusqlite/trace"]
 
 # Activate the rusqlite "url" feature
-trace = ["rusqlite/trace"]
+url = ["rusqlite/url"]
 
 wal-pool = ["crossbeam-channel"]
