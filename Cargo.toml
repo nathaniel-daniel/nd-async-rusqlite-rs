@@ -15,6 +15,9 @@ crossbeam-channel = { version = "0.5.11", optional = true }
 tokio = { version = "1.35.1", features = ["macros", "rt"] }
 
 [features]
+# Activate the rusqlite "backup" feature
+backup = ["rusqlite/backup"]
+
 # Activate the rusqlite "bundled" feature
 bundled = ["rusqlite/bundled"]
 
