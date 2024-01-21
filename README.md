@@ -46,13 +46,14 @@ async fn main() {
 ```
 
 ## Features
-| Name    | Description                       |
-|---------|-----------------------------------|
-| backup  | Enable rusqlite's backup feature  |
-| bundled | Enable rusqlite's bundled feature |
-| time    | Enable rusqlite's time feature    |
-| trace   | Enable rusqlite's trace feature   |
-| url     | Enable rusqlite's url feature     |
+| Name     | Description                                                             |
+|----------|-------------------------------------------------------------------------|
+| backup   | Enable rusqlite's backup feature                                        |
+| bundled  | Enable rusqlite's bundled feature                                       |
+| time     | Enable rusqlite's time feature                                          |
+| trace    | Enable rusqlite's trace feature                                         |
+| url      | Enable rusqlite's url feature                                           |
+| wal-pool | Enable the WalPool type, a concurrent connection pool for WAL databases | 
 
 ## License
 Licensed under either of
