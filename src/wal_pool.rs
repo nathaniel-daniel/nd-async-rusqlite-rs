@@ -4,7 +4,6 @@ pub use self::builder::WalPoolBuilder;
 use crate::Error;
 use crate::SyncWrapper;
 use std::sync::Arc;
-use tokio::sync::Semaphore;
 
 /// The channel message
 enum Message {
@@ -28,38 +27,6 @@ impl WalPool {
         WalPoolBuilder::new()
     }
 
-    /// Get a write permit, if needed.
-    async fn get_write_permit(&self) -> Option<tokio::sync::SemaphorePermit> {
-        // TODO: How should a no-permit situation be handled?
-        // Should we return an error to the caller, or simply wait?
-        //
-        // The benefit of waiting is that the case where a loop creates requests without awaiting them can be limitied by waiting, here.
-        // The benefit of returning an error is handling high-load situations by returning errors to requests that cannot be fufilled in a timely manner.
-        match self.inner.write_semaphore.as_ref() {
-            Some(semaphore) => {
-                // We never close the semaphore.
-                Some(semaphore.acquire().await.unwrap())
-            }
-            None => None,
-        }
-    }
-
-    /// Get a read permit, if needed.
-    async fn get_read_permit(&self) -> Option<tokio::sync::SemaphorePermit> {
-        // TODO: How should a no-permit situation be handled?
-        // Should we return an error to the caller, or simply wait?
-        //
-        // The benefit of waiting is that the case where a loop creates requests without awaiting them can be limitied by waiting, here.
-        // The benefit of returning an error is handling high-load situations by returning errors to requests that cannot be fufilled in a timely manner.
-        match self.inner.read_semaphore.as_ref() {
-            Some(semaphore) => {
-                // We never close the semaphore.
-                Some(semaphore.acquire().await.unwrap())
-            }
-            None => None,
-        }
-    }
-
     /// Close the pool.
     ///
     /// This will queue a close request to each thread.
@@ -75,7 +42,6 @@ impl WalPool {
         let mut last_error = Ok(());
 
         loop {
-            let permit = self.get_write_permit().await;
             let (tx, rx) = tokio::sync::oneshot::channel();
             let send_result = self.inner.readers_tx.send(Message::Close { tx });
 
@@ -92,21 +58,16 @@ impl WalPool {
             if let Err(close_error) = close_result {
                 last_error = Err(close_error);
             }
-
-            drop(permit);
         }
 
         // Close the writer
         let close_writer_result = async {
-            let permit = self.get_write_permit().await;
             let (tx, rx) = tokio::sync::oneshot::channel();
             self.inner
                 .writer_tx
                 .send(Message::Close { tx })
                 .map_err(|_| Error::Aborted)?;
             rx.await.map_err(|_| Error::Aborted)??;
-            drop(permit);
-
             Ok(())
         }
         .await;
@@ -129,7 +90,6 @@ impl WalPool {
         // TODO: We should make this a function and have it return a named Future.
         // This will allow users to avoid spawning a seperate task for each database call.
 
-        let permit = self.get_read_permit().await;
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.inner
             .readers_tx
@@ -146,7 +106,6 @@ impl WalPool {
             })
             .map_err(|_| Error::Aborted)?;
         let result = rx.await.map_err(|_| Error::Aborted)??;
-        drop(permit);
 
         Ok(result)
     }
@@ -162,7 +121,6 @@ impl WalPool {
         // TODO: We should make this a function and have it return a named Future.
         // This will allow users to avoid spawning a seperate task for each database call.
 
-        let permit = self.get_write_permit().await;
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.inner
             .writer_tx
@@ -179,8 +137,6 @@ impl WalPool {
             })
             .map_err(|_| Error::Aborted)?;
         let result = rx.await.map_err(|_| Error::Aborted)??;
-        drop(permit);
-
         Ok(result)
     }
 }
@@ -190,9 +146,6 @@ impl WalPool {
 struct InnerWalPool {
     writer_tx: crossbeam_channel::Sender<Message>,
     readers_tx: crossbeam_channel::Sender<Message>,
-
-    write_semaphore: Option<Semaphore>,
-    read_semaphore: Option<Semaphore>,
 }
 
 #[cfg(test)]

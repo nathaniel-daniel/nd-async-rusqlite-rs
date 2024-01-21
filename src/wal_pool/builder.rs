@@ -6,10 +6,7 @@ use crate::SyncWrapper;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::Semaphore;
 
-const DEFAULT_MAX_QUEUED_READS: Option<usize> = Some(128);
-const DEFAULT_MAX_QUEUED_WRITES: Option<usize> = Some(32);
 const DEFAULT_NUM_READ_CONNECTIONS: usize = 4;
 
 type ConnectionInitFn =
@@ -17,12 +14,6 @@ type ConnectionInitFn =
 
 /// A builder for a [`WalPool`].
 pub struct WalPoolBuilder {
-    /// The maximum number of reads that may be queued.
-    pub max_queued_reads: Option<usize>,
-
-    /// The maximum number of writes that may be queued.
-    pub max_queued_writes: Option<usize>,
-
     /// The number of read connections
     pub num_read_connections: usize,
 
@@ -38,30 +29,11 @@ impl WalPoolBuilder {
     pub fn new() -> Self {
         // TODO: Try to find some sane defaults experimentally.
         Self {
-            max_queued_reads: DEFAULT_MAX_QUEUED_READS,
-            max_queued_writes: DEFAULT_MAX_QUEUED_WRITES,
-
             num_read_connections: DEFAULT_NUM_READ_CONNECTIONS,
 
             writer_init_fn: None,
             reader_init_fn: None,
         }
-    }
-
-    /// Set the maximum number of queued reads.
-    ///
-    /// This must be greater than 0.
-    pub fn max_queued_reads(&mut self, max_queued_reads: Option<usize>) -> &mut Self {
-        self.max_queued_reads = max_queued_reads;
-        self
-    }
-
-    /// Set the maximum number of queued writes.
-    ///
-    /// This must be greater than 0.
-    pub fn max_queued_writes(&mut self, max_queued_writes: Option<usize>) -> &mut Self {
-        self.max_queued_writes = max_queued_writes;
-        self
     }
 
     /// Set the number of read connections.
@@ -98,9 +70,6 @@ impl WalPoolBuilder {
         let path = path.as_ref().to_path_buf();
 
         // TODO: Validate these values are not 0.
-        // Do this first, this can panic if values are too large.
-        let read_semaphore = self.max_queued_reads.map(Semaphore::new);
-        let write_semaphore = self.max_queued_writes.map(Semaphore::new);
         let num_read_connections = self.num_read_connections;
 
         // Only the writer can create the database, make sure it does so before doing anything else.
@@ -151,9 +120,6 @@ impl WalPoolBuilder {
             inner: Arc::new(InnerWalPool {
                 writer_tx,
                 readers_tx,
-
-                write_semaphore,
-                read_semaphore,
             }),
         };
 
