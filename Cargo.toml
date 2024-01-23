@@ -21,6 +21,9 @@ backup = ["rusqlite/backup"]
 # Activate the rusqlite "bundled" feature
 bundled = ["rusqlite/bundled"]
 
+# Activate the rusqlite "functions" feature
+functions = ["rusqlite/functions"]
+
 # Activate the rusqlite "time" feature
 time = ["rusqlite/time"]
 
