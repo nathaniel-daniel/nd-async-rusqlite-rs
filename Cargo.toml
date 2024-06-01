@@ -9,7 +9,7 @@ rusqlite = "0.31.0"
 tokio = { version = "1.37.0", features = ["sync"] }
 
 # wal-pool
-crossbeam-channel = { version = "0.5.12", optional = true }
+crossbeam-channel = { version = "0.5.13", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1.37.0", features = ["macros", "rt"] }
