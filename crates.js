@@ -1,0 +1,1 @@
+window.ALL_CRATES = ["nd_async_rusqlite"];
