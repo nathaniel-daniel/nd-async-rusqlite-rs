@@ -25,6 +25,9 @@ jobs:
             target/
           key: ${{ runner.os }}-lint-cargo-${{ hashFiles('**/Cargo.lock') }}
           
+      - name: Install Toolchain
+        uses: dtolnay/rust-toolchain@stable
+          
       - name: Fmt
         run: cargo fmt --all -- --check
          
@@ -39,7 +42,7 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Deny
-        uses: EmbarkStudios/cargo-deny-action@v1
+        uses: EmbarkStudios/cargo-deny-action@v2
         
   build:
     name: Build
@@ -47,6 +50,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        
+      - name: Install Toolchain
+        uses: dtolnay/rust-toolchain@stable
         
       - name: Cache
         uses: actions/cache@v3
