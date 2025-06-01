@@ -5,14 +5,14 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-rusqlite = "0.35.0"
-tokio = { version = "1.44.2", features = ["sync"] }
+rusqlite = "0.36.0"
+tokio = { version = "1.45.1", features = ["sync"] }
 
 # wal-pool
 crossbeam-channel = { version = "0.5.15", optional = true }
 
 [dev-dependencies]
-tokio = { version = "1.44.2", features = ["macros", "rt"] }
+tokio = { version = "1.45.1", features = ["macros", "rt"] }
 
 [features]
 # Activate the rusqlite "backup" feature
