@@ -7,21 +7,21 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-const DEFAULT_NUM_READ_CONNECTIONS: usize = 4;
+const DEFAULT_READERS: usize = 4;
 
-type ConnectionInitFn =
+type ConnectionSetupFn =
     Arc<dyn Fn(&mut rusqlite::Connection) -> Result<(), Error> + Send + Sync + 'static>;
 
 /// A builder for a [`WalPool`].
 pub struct WalPoolBuilder {
     /// The number of read connections
-    pub num_read_connections: usize,
+    pub readers: usize,
 
     /// A function to be called to initialize each reader.
-    pub reader_init_fn: Option<ConnectionInitFn>,
+    pub reader_setup: Option<ConnectionSetupFn>,
 
     /// A function to be called to initialize the writer.
-    pub writer_init_fn: Option<ConnectionInitFn>,
+    pub writer_setup: Option<ConnectionSetupFn>,
 }
 
 impl WalPoolBuilder {
@@ -29,36 +29,36 @@ impl WalPoolBuilder {
     pub fn new() -> Self {
         // TODO: Try to find some sane defaults experimentally.
         Self {
-            num_read_connections: DEFAULT_NUM_READ_CONNECTIONS,
+            readers: DEFAULT_READERS,
 
-            writer_init_fn: None,
-            reader_init_fn: None,
+            reader_setup: None,
+            writer_setup: None,
         }
     }
 
     /// Set the number of read connections.
     ///
     /// This must be greater than 0.
-    pub fn num_read_connections(&mut self, num_read_connections: usize) -> &mut Self {
-        self.num_read_connections = num_read_connections;
-        self
-    }
-
-    /// Add a function to be called when the writer connection initializes.
-    pub fn writer_init_fn<F>(&mut self, writer_init_fn: F) -> &mut Self
-    where
-        F: Fn(&mut rusqlite::Connection) -> Result<(), Error> + Send + Sync + 'static,
-    {
-        self.writer_init_fn = Some(Arc::new(writer_init_fn));
+    pub fn readers(&mut self, readers: usize) -> &mut Self {
+        self.readers = readers;
         self
     }
 
     /// Add a function to be called when a reader connection initializes.
-    pub fn reader_init_fn<F>(&mut self, reader_init_fn: F) -> &mut Self
+    pub fn reader_setup<F>(&mut self, reader_setup: F) -> &mut Self
     where
         F: Fn(&mut rusqlite::Connection) -> Result<(), Error> + Send + Sync + 'static,
     {
-        self.reader_init_fn = Some(Arc::new(reader_init_fn));
+        self.reader_setup = Some(Arc::new(reader_setup));
+        self
+    }
+
+    /// Add a function to be called when the writer connection initializes.
+    pub fn writer_setup<F>(&mut self, writer_setup: F) -> &mut Self
+    where
+        F: Fn(&mut rusqlite::Connection) -> Result<(), Error> + Send + Sync + 'static,
+    {
+        self.writer_setup = Some(Arc::new(writer_setup));
         self
     }
 
@@ -69,18 +69,20 @@ impl WalPoolBuilder {
     {
         let path = path.as_ref().to_path_buf();
 
-        // TODO: Validate these values are not 0.
-        let num_read_connections = self.num_read_connections;
+        let readers = self.readers;
+        if self.readers == 0 {
+            return Err(Error::Generic("`readers` cannot be 0"));
+        }
 
         // Only the writer can create the database, make sure it does so before doing anything else.
         let writer_tx = {
             let (writer_tx, writer_rx) = crossbeam_channel::unbounded::<Message>();
             let path = path.clone();
             let flags = rusqlite::OpenFlags::default();
-            let writer_init_fn = self.writer_init_fn.clone();
+            let writer_setup = self.writer_setup.clone();
             let (open_write_tx, open_write_rx) = tokio::sync::oneshot::channel();
             std::thread::spawn(move || {
-                connection_thread_impl(writer_rx, path, flags, writer_init_fn, open_write_tx)
+                connection_thread_impl(writer_rx, path, flags, writer_setup, open_write_tx)
             });
 
             open_write_rx
@@ -93,8 +95,8 @@ impl WalPoolBuilder {
 
         // Bring reader connections up all at once for speed.
         let (readers_tx, readers_rx) = crossbeam_channel::unbounded::<Message>();
-        let mut open_read_rx_list = Vec::with_capacity(num_read_connections);
-        for _ in 0..num_read_connections {
+        let mut open_read_rx_list = Vec::with_capacity(readers);
+        for _ in 0..readers {
             let readers_rx = readers_rx.clone();
             let path = path.clone();
 
@@ -104,11 +106,11 @@ impl WalPoolBuilder {
             flags.remove(rusqlite::OpenFlags::SQLITE_OPEN_CREATE);
             flags.insert(rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY);
 
-            let reader_init_fn = self.reader_init_fn.clone();
+            let reader_setup = self.reader_setup.clone();
 
             let (open_read_tx, open_read_rx) = tokio::sync::oneshot::channel();
             std::thread::spawn(move || {
-                connection_thread_impl(readers_rx, path, flags, reader_init_fn, open_read_tx)
+                connection_thread_impl(readers_rx, path, flags, reader_setup, open_read_tx)
             });
             open_read_rx_list.push(open_read_rx);
         }
@@ -173,7 +175,7 @@ fn connection_thread_impl(
     rx: crossbeam_channel::Receiver<Message>,
     path: PathBuf,
     flags: rusqlite::OpenFlags,
-    init_fn: Option<ConnectionInitFn>,
+    init_fn: Option<ConnectionSetupFn>,
     connection_open_tx: tokio::sync::oneshot::Sender<Result<(), Error>>,
 ) {
     // Open the database, reporting errors as necessary.

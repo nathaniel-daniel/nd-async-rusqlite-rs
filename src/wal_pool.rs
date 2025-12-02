@@ -181,17 +181,17 @@ mod test {
 
         let writer_init_fn_called = Arc::new(AtomicBool::new(false));
         let num_reader_init_fn_called = Arc::new(AtomicUsize::new(0));
-        let num_read_connections = 4;
+        let readers = 4;
         let connection = {
             let writer_init_fn_called = writer_init_fn_called.clone();
             let num_reader_init_fn_called = num_reader_init_fn_called.clone();
             WalPool::builder()
-                .num_read_connections(num_read_connections)
-                .writer_init_fn(move |_connection| {
+                .readers(readers)
+                .writer_setup(move |_connection| {
                     writer_init_fn_called.store(true, Ordering::SeqCst);
                     Ok(())
                 })
-                .reader_init_fn(move |_connection| {
+                .reader_setup(move |_connection| {
                     num_reader_init_fn_called.fetch_add(1, Ordering::SeqCst);
                     Ok(())
                 })
@@ -203,7 +203,7 @@ mod test {
         let num_reader_init_fn_called = num_reader_init_fn_called.load(Ordering::SeqCst);
 
         assert!(writer_init_fn_called);
-        assert!(num_reader_init_fn_called == num_read_connections);
+        assert!(num_reader_init_fn_called == readers);
 
         // Ensure connection is clone
         let _connection1 = connection.clone();
@@ -242,7 +242,7 @@ mod test {
         let connection_path = temp_path.join("wal-pool-init_fn_panics.db");
 
         WalPool::builder()
-            .writer_init_fn(move |_connection| {
+            .writer_setup(move |_connection| {
                 panic!("user panic");
             })
             .open(&connection_path)
@@ -250,7 +250,7 @@ mod test {
             .expect_err("panic should become an error");
 
         WalPool::builder()
-            .reader_init_fn(move |_connection| {
+            .reader_setup(move |_connection| {
                 panic!("user panic");
             })
             .open(&connection_path)

@@ -33,6 +33,9 @@ pub enum Error {
     /// The WalPool attempted to put the database into WAL mode, but failed.
     #[cfg(feature = "wal-pool")]
     InvalidJournalMode(String),
+
+    /// A generic error
+    Generic(&'static str),
 }
 
 impl std::fmt::Display for Error {
@@ -41,6 +44,7 @@ impl std::fmt::Display for Error {
             Self::Rusqlite(error) => error.fmt(f),
             Self::Aborted => "the connection thread aborted the request".fmt(f),
             Self::AccessPanic(_) => "a connection access panicked".fmt(f),
+            Self::Generic(message) => message.fmt(f),
 
             #[cfg(feature = "wal-pool")]
             Self::InvalidJournalMode(journal_mode) => {
@@ -59,6 +63,7 @@ impl std::error::Error for Error {
             Self::Rusqlite(error) => Some(error),
             Self::Aborted => None,
             Self::AccessPanic(_) => None,
+            Self::Generic(_) => None,
 
             #[cfg(feature = "wal-pool")]
             Self::InvalidJournalMode(_) => None,
