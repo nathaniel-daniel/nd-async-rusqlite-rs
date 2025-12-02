@@ -2,3 +2,5 @@
 /test-temp
 
 *.db
+*.db-shm
+*.db-wal
