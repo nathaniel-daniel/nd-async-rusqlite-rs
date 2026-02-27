@@ -15,11 +15,20 @@ crossbeam-channel = { version = "0.5.15", optional = true }
 tokio = { version = "1.49.0", features = ["macros", "rt"] }
 
 [features]
+# Activate the rusqlite "array" feature
+array = ["rusqlite/array"]
+
 # Activate the rusqlite "backup" feature
 backup = ["rusqlite/backup"]
 
 # Activate the rusqlite "bundled" feature
 bundled = ["rusqlite/bundled"]
+
+# Activate the rusqlite "cache" feature
+cache = ["rusqlite/cache"]
+
+# Activate the rusqlite "fallible_uint" feature
+fallible_uint = ["rusqlite/fallible_uint"]
 
 # Activate the rusqlite "functions" feature
 functions = ["rusqlite/functions"]
