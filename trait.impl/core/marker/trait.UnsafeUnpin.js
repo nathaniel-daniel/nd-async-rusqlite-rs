@@ -1,0 +1,9 @@
+(function() {
+    var implementors = Object.fromEntries([["nd_async_rusqlite",[["impl UnsafeUnpin for <a class=\"enum\" href=\"nd_async_rusqlite/enum.Error.html\" title=\"enum nd_async_rusqlite::Error\">Error</a>",1,["nd_async_rusqlite::Error"]],["impl UnsafeUnpin for <a class=\"struct\" href=\"nd_async_rusqlite/struct.AsyncConnection.html\" title=\"struct nd_async_rusqlite::AsyncConnection\">AsyncConnection</a>",1,["nd_async_rusqlite::async_connection::AsyncConnection"]],["impl UnsafeUnpin for <a class=\"struct\" href=\"nd_async_rusqlite/struct.AsyncConnectionBuilder.html\" title=\"struct nd_async_rusqlite::AsyncConnectionBuilder\">AsyncConnectionBuilder</a>",1,["nd_async_rusqlite::async_connection::builder::AsyncConnectionBuilder"]],["impl UnsafeUnpin for <a class=\"struct\" href=\"nd_async_rusqlite/struct.WalPool.html\" title=\"struct nd_async_rusqlite::WalPool\">WalPool</a>",1,["nd_async_rusqlite::wal_pool::WalPool"]],["impl UnsafeUnpin for <a class=\"struct\" href=\"nd_async_rusqlite/struct.WalPoolBuilder.html\" title=\"struct nd_async_rusqlite::WalPoolBuilder\">WalPoolBuilder</a>",1,["nd_async_rusqlite::wal_pool::builder::WalPoolBuilder"]],["impl&lt;T&gt; UnsafeUnpin for <a class=\"struct\" href=\"nd_async_rusqlite/struct.SyncWrapper.html\" title=\"struct nd_async_rusqlite::SyncWrapper\">SyncWrapper</a>&lt;T&gt;<div class=\"where\">where\n    T: UnsafeUnpin,</div>",1,["nd_async_rusqlite::sync_wrapper::SyncWrapper"]]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":57,"fragment_lengths":[1390]}
