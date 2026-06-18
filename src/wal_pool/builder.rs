@@ -201,8 +201,9 @@ fn connection_thread_impl(
     if let Some(init_fn) = init_fn {
         let init_fn = std::panic::AssertUnwindSafe(|| init_fn(&mut connection));
         let init_result = std::panic::catch_unwind(init_fn);
-        let init_result =
-            init_result.map_err(|panic_data| Error::AccessPanic(SyncWrapper::new(panic_data)));
+        let init_result = init_result
+            .map_err(|panic_data| Error::AccessPanic(SyncWrapper::new(panic_data)))
+            .and_then(std::convert::identity);
         if let Err(error) = init_result {
             // Don't care if we succeed since we should exit in either case.
             let _ = connection_open_tx.send(Err(error)).is_ok();
