@@ -11,18 +11,18 @@ This simple connection pool will maintain a user-specified number of readers and
 
 ## Features
 
-| Name          | Description                                                                     |
-| ------------- | ------------------------------------------------------------------------------- |
-| array         | Enable rusqlite's `array` feature                                               |
-| backup        | Enable rusqlite's `backup` feature                                              |
-| bundled       | Enable rusqlite's `bundled` feature                                             |
-| cache         | Enable rusqlite's `cache` feature                                               |
-| fallible_uint | Enable rusqlite's `fallible_uint` feature                                       |
-| functions     | Enable rusqlite's `function` feature                                            |
-| time          | Enable rusqlite's `time` feature                                                |
-| trace         | Enable rusqlite's `trace` feature                                               |
-| url           | Enable rusqlite's `url` feature                                                 |
-| wal-pool      | Enable the `WalPool` type, a concurrent connection pool for WAL databases       |
+| Name          | Description                                                               |
+| ------------- | ------------------------------------------------------------------------- |
+| array         | Enable rusqlite's `array` feature                                         |
+| backup        | Enable rusqlite's `backup` feature                                        |
+| bundled       | Enable rusqlite's `bundled` feature                                       |
+| cache         | Enable rusqlite's `cache` feature                                         |
+| fallible_uint | Enable rusqlite's `fallible_uint` feature                                 |
+| functions     | Enable rusqlite's `function` feature                                      |
+| time          | Enable rusqlite's `time` feature                                          |
+| trace         | Enable rusqlite's `trace` feature                                         |
+| url           | Enable rusqlite's `url` feature                                           |
+| wal-pool      | Enable the `WalPool` type, a concurrent connection pool for WAL databases |
 
 ## Examples
 
