@@ -1,0 +1,2 @@
+createSrcSidebar('[["benchmark",["",[["nd_async_rusqlite_impl",[],["async_connection.rs","wal_pool.rs"]]],["main.rs","nd_async_rusqlite_impl.rs","r2d2_rusqlite_impl.rs","rusqlite_mutex_impl.rs","tokio_rusqlite_impl.rs"]]],["nd_async_rusqlite",["",[["async_connection",[],["builder.rs"]],["wal_pool",[],["builder.rs"]]],["async_connection.rs","lib.rs","sync_wrapper.rs","wal_pool.rs"]]]]');
+//{"start":19,"fragment_lengths":[202,164]}
