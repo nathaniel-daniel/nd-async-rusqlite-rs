@@ -1,5 +1,6 @@
 mod nd_async_rusqlite_impl;
 mod rusqlite_mutex_impl;
+mod tokio_rusqlite_impl;
 
 use anyhow::Context;
 use async_trait::async_trait;
@@ -64,7 +65,7 @@ trait DatabaseImpl: Clone + Send + Sized + 'static {
     async fn read(&self, name: String) -> anyhow::Result<Vec<User>>;
 
     // Shutdown.
-    async fn shutdown(&self) -> anyhow::Result<()>;
+    async fn shutdown(self) -> anyhow::Result<()>;
 }
 
 fn spawn_operation<D>(
@@ -163,10 +164,13 @@ async fn async_main() -> anyhow::Result<()> {
         run_benchmark::<nd_async_rusqlite::WalPool>(operations_split, rng_seed).await?;
     let rusqlite_mutex_time =
         run_benchmark::<Arc<Mutex<rusqlite::Connection>>>(operations_split, rng_seed).await?;
+    let tokio_rusqlite_time =
+        run_benchmark::<tokio_rusqlite::Connection>(operations_split, rng_seed).await?;
 
-    println!("AsyncConnection: {async_connection_time:?}");
-    println!("WalPool: {wal_pool_time:?}");
-    println!("Mutex<rusqlite::Connection>: {rusqlite_mutex_time:?}");
+    println!("nd_async_rusqlite::AsyncConnection: {async_connection_time:?}");
+    println!("nd_async_rusqlite::WalPool: {wal_pool_time:?}");
+    println!("Arc<Mutex<rusqlite::Connection>>: {rusqlite_mutex_time:?}");
+    println!("tokio_rusqlite::Connection: {tokio_rusqlite_time:?}");
 
     Ok(())
 }

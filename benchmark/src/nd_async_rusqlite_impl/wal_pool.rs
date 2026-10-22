@@ -67,7 +67,7 @@ impl DatabaseImpl for nd_async_rusqlite::WalPool {
         Ok(users)
     }
 
-    async fn shutdown(&self) -> anyhow::Result<()> {
+    async fn shutdown(self) -> anyhow::Result<()> {
         self.write(move |database| {
             database.execute("VACUUM;", [])?;
 

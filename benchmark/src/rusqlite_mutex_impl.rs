@@ -85,7 +85,7 @@ impl DatabaseImpl for Arc<Mutex<rusqlite::Connection>> {
         Ok(users)
     }
 
-    async fn shutdown(&self) -> anyhow::Result<()> {
+    async fn shutdown(self) -> anyhow::Result<()> {
         let self_clone = self.clone();
 
         tokio::task::spawn_blocking(move || {

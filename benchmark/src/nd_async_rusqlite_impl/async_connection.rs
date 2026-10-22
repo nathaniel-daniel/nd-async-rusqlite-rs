@@ -72,7 +72,7 @@ impl DatabaseImpl for nd_async_rusqlite::AsyncConnection {
         Ok(users)
     }
 
-    async fn shutdown(&self) -> anyhow::Result<()> {
+    async fn shutdown(self) -> anyhow::Result<()> {
         self.access(move |database| {
             database.execute("VACUUM;", [])?;
 
