@@ -1,3 +1,9 @@
+PRETTIER = pnpx prettier
+
 .PHONY: fmt-readme
 fmt-readme:
-	pnpm dlx prettier .\README.md --write
+	$(PRETTIER) README.md --write
+	
+.PHONY: fmt-ci
+fmt-ci:
+	$(PRETTIER) .github --write
