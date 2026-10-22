@@ -1,7 +1,7 @@
 [package]
 name = "nd-async-rusqlite"
 version = "0.0.0"
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
@@ -43,3 +43,9 @@ trace = ["rusqlite/trace"]
 url = ["rusqlite/url"]
 
 wal-pool = ["crossbeam-channel"]
+
+[workspace]
+resolver = "3"
+members = [
+    "benchmark"
+]

@@ -212,6 +212,14 @@ WHERE
 }
 ```
 
+## Benchmark
+
+You can find a pretty unscientific benchmark in the [`benchmark`](./benchmark) folder.
+This program will test how long it takes for a few different connection/pool implementations to execute 100,000 operations (80% read, 20% write) with a concurrency of 32 concurrent operations.
+Each connection/pool will open an Sqlite database in `WAL` mode with `synchronous = NORMAL`, and `VACUUM` on shutdown.
+This benchmark is fairly flawed, but still shows the benefits of using `WalPool` under read-heavy scenarios where you are using `WAL` and can afford `synchronous = NORMAL`.
+![Benchmark Results](benchmark/results.png)
+
 ## License
 
 Licensed under either of
