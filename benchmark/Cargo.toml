@@ -1,0 +1,12 @@
+[package]
+name = "benchmark"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+anyhow = "1.0.104"
+async-trait = "0.1.92"
+nd-async-rusqlite = { version = "0.0.0", path = "..", features = [ "wal-pool" ] }
+rand = { version = "0.10.3", features = [ "std_rng" ], default-features = false }
+tokio = { version = "1.54.1", features = [ "rt-multi-thread" ] }
