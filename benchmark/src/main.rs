@@ -1,4 +1,5 @@
 mod nd_async_rusqlite_impl;
+mod r2d2_rusqlite_impl;
 mod rusqlite_mutex_impl;
 mod tokio_rusqlite_impl;
 
@@ -10,6 +11,7 @@ use rand::RngExt;
 use rand::SeedableRng;
 use rand::prelude::IndexedRandom;
 use rand::rngs::StdRng;
+use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -30,10 +32,10 @@ const OPERATIONS: u64 = 100_000;
 const DATABASE_PATH: &str = "database.db";
 
 const SET_WAL_MODE_SQL: &str = "PRAGMA journal_mode=WAL;";
-const SETUP_SQL: &[&str] = &[
-    "PRAGMA synchronous = NORMAL;",
-    "CREATE TABLE users (name TEXT NOT NULL, value INTEGER NOT NULL) STRICT;",
-];
+const SETUP_SYNCHRONOUS_SQL: &str = "PRAGMA synchronous = NORMAL;";
+const SETUP_TABLE_SQL: &str =
+    "CREATE TABLE users (name TEXT NOT NULL, value INTEGER NOT NULL) STRICT;";
+const SETUP_SQL: &[&str] = &[SETUP_SYNCHRONOUS_SQL, SETUP_TABLE_SQL];
 const INSERT_USER_SQL: &str = "INSERT INTO users (name, value) VALUES (:name, :value);";
 const GET_USERS_SQL: &str = "SELECT name, value FROM users WHERE name = :name;";
 
@@ -166,11 +168,34 @@ async fn async_main() -> anyhow::Result<()> {
         run_benchmark::<Arc<Mutex<rusqlite::Connection>>>(operations_split, rng_seed).await?;
     let tokio_rusqlite_time =
         run_benchmark::<tokio_rusqlite::Connection>(operations_split, rng_seed).await?;
+    let r2d2_time = run_benchmark::<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>(
+        operations_split,
+        rng_seed,
+    )
+    .await?;
 
-    println!("nd_async_rusqlite::AsyncConnection: {async_connection_time:?}");
-    println!("nd_async_rusqlite::WalPool: {wal_pool_time:?}");
-    println!("Arc<Mutex<rusqlite::Connection>>: {rusqlite_mutex_time:?}");
-    println!("tokio_rusqlite::Connection: {tokio_rusqlite_time:?}");
+    let results = [
+        ("nd_async_rusqlite::AsyncConnection", async_connection_time),
+        ("nd_async_rusqlite::WalPool", wal_pool_time),
+        ("Arc<Mutex<rusqlite::Connection>>", rusqlite_mutex_time),
+        ("tokio_rusqlite::Connection", tokio_rusqlite_time),
+        (
+            "r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>",
+            r2d2_time,
+        ),
+    ];
+
+    for (label, time) in results.iter() {
+        println!("{label}: {time:?}");
+    }
+
+    let mut writer = csv::Writer::from_writer(File::create("results.csv")?);
+    writer.write_record(["label", "time"])?;
+    for (label, time) in results.iter() {
+        let time = time.as_millis().to_string();
+        writer.write_record([label, time.as_str()])?;
+    }
+    writer.flush()?;
 
     Ok(())
 }
