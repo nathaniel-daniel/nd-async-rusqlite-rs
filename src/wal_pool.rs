@@ -161,21 +161,21 @@ mod test {
         let connection_error = WalPool::builder()
             .open(".")
             .await
-            .expect_err("pool should not open on a directory");
+            .expect_err("Pool should not open on a directory");
         assert!(matches!(connection_error, Error::Rusqlite(_)));
     }
 
     #[tokio::test]
     async fn sanity() {
         let temp_path = Path::new("test-temp");
-        std::fs::create_dir_all(temp_path).expect("failed to create temp dir");
+        std::fs::create_dir_all(temp_path).expect("Failed to create temp dir");
 
         let connection_path = temp_path.join("wal-pool-sanity.db");
         match std::fs::remove_file(&connection_path) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => {
-                panic!("failed to remove old database: {error:?}");
+                panic!("Failed to remove old database: {error:?}");
             }
         }
 
@@ -197,7 +197,7 @@ mod test {
                 })
                 .open(&connection_path)
                 .await
-                .expect("connection should be open")
+                .expect("Connection should be open")
         };
         let writer_init_fn_called = writer_init_fn_called.load(Ordering::SeqCst);
         let num_reader_init_fn_called = num_reader_init_fn_called.load(Ordering::SeqCst);
@@ -210,9 +210,9 @@ mod test {
 
         // Ensure write connection survives panic
         let panic_error = connection
-            .write(|_connection| panic!("the connection should survive the panic"))
+            .write(|_connection| panic!("The connection should survive the panic"))
             .await
-            .expect_err("the access should have failed");
+            .expect_err("The access should have failed");
 
         assert!(matches!(panic_error, Error::AccessPanic(_)));
 
@@ -220,20 +220,20 @@ mod test {
         connection
             .write(|connection| connection.execute_batch(setup_sql))
             .await
-            .expect("failed to create tables")
-            .expect("failed to execute");
+            .expect("Failed to create tables")
+            .expect("Failed to execute");
 
         // Reader should not be able to write
         connection
             .read(|connection| connection.execute_batch(setup_sql))
             .await
-            .expect("failed to access")
-            .expect_err("write should have failed");
+            .expect("Failed to access")
+            .expect_err("Write should have failed");
 
         connection
             .close()
             .await
-            .expect("an error occured while closing");
+            .expect("An error occured while closing");
     }
 
     #[tokio::test]
@@ -243,18 +243,18 @@ mod test {
 
         WalPool::builder()
             .writer_setup(move |_connection| {
-                panic!("user panic");
+                panic!("User panic");
             })
             .open(&connection_path)
             .await
-            .expect_err("panic should become an error");
+            .expect_err("Panic should become an error");
 
         WalPool::builder()
             .reader_setup(move |_connection| {
-                panic!("user panic");
+                panic!("User panic");
             })
             .open(&connection_path)
             .await
-            .expect_err("panic should become an error");
+            .expect_err("Panic should become an error");
     }
 }

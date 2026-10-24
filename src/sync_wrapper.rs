@@ -1,4 +1,6 @@
-/// Inspired by https://internals.rust-lang.org/t/what-shall-sync-mean-across-an-await/12020/2.
+/// A wrapper that safely implements [`Sync`] for values that implement [`Send`].
+///
+/// Inspired by <https://internals.rust-lang.org/t/what-shall-sync-mean-across-an-await/12020/2>.
 #[repr(transparent)]
 #[derive(Debug)]
 pub struct SyncWrapper<T>(T);
@@ -16,5 +18,5 @@ impl<T> SyncWrapper<T> {
 }
 
 // Safety:
-// * This is safe as this type is useless without an immutable reference.
+// * This is safe as this type is useless with just an immutable reference.
 unsafe impl<T> Sync for SyncWrapper<T> where T: Send {}

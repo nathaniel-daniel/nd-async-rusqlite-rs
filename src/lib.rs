@@ -34,7 +34,7 @@ pub enum Error {
     #[cfg(feature = "wal-pool")]
     InvalidJournalMode(String),
 
-    /// A generic error
+    /// A generic error.
     Generic(&'static str),
 }
 
@@ -42,15 +42,15 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Rusqlite(error) => error.fmt(f),
-            Self::Aborted => "the connection thread aborted the request".fmt(f),
-            Self::AccessPanic(_) => "a connection access panicked".fmt(f),
+            Self::Aborted => "The connection thread aborted the request".fmt(f),
+            Self::AccessPanic(_) => "A connection access panicked".fmt(f),
             Self::Generic(message) => message.fmt(f),
 
             #[cfg(feature = "wal-pool")]
             Self::InvalidJournalMode(journal_mode) => {
                 write!(
                     f,
-                    "failed to set journal_mode to WAL, journal_mode is \"{journal_mode}\""
+                    "Failed to set journal_mode to WAL, journal_mode is \"{journal_mode}\""
                 )
             }
         }
@@ -105,12 +105,12 @@ mod test {
     #[tokio::test]
     async fn sanity() {
         let temp_path = Path::new("test-temp");
-        std::fs::create_dir_all(temp_path).expect("failed to create temp dir");
+        std::fs::create_dir_all(temp_path).expect("Failed to create temp dir");
 
         let connection_error = AsyncConnection::builder()
             .open(".")
             .await
-            .expect_err("connection should not open on a directory");
+            .expect_err("Connection should not open on a directory");
         assert!(matches!(connection_error, Error::Rusqlite(_)));
 
         let connection_path = temp_path.join("sanity.db");
@@ -118,23 +118,23 @@ mod test {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => {
-                panic!("failed to remove old database: {error:?}");
+                panic!("Failed to remove old database: {error:?}");
             }
         }
 
         let connection = AsyncConnection::builder()
             .open(connection_path)
             .await
-            .expect("connection should be open");
+            .expect("Connection should be open");
 
         // Ensure connection is clone
         let _connection1 = connection.clone();
 
         // Ensure connection survives panic
         let panic_error = connection
-            .access(|_connection| panic!("the connection should survive the panic"))
+            .access(|_connection| panic!("The connection should survive the panic"))
             .await
-            .expect_err("the access should have failed");
+            .expect_err("The access should have failed");
 
         assert!(matches!(panic_error, Error::AccessPanic(_)));
 
@@ -142,12 +142,12 @@ mod test {
         connection
             .access(|connection| connection.execute_batch(setup_sql))
             .await
-            .expect("failed to create tables")
-            .expect("failed to execute");
+            .expect("Failed to create tables")
+            .expect("Failed to execute");
 
         connection
             .close()
             .await
-            .expect("an error occured while closing");
+            .expect("An error occured while closing");
     }
 }
