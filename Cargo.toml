@@ -1,8 +1,16 @@
 [package]
 name = "nd-async-rusqlite"
 version = "0.0.0"
+authors = [ "Nathaniel Daniel <nathaniel.daniel12@gmail.com>" ]
 edition = "2024"
+rust-version = "1.85"
+description = "Utilities for accessing an Sqlite database via rusqlite in an async runtime."
+readme = "README.md"
+repository = "https://github.com/nathaniel-daniel/nd-async-rusqlite-rs"
 license = "MIT OR Apache-2.0"
+keywords = ["async", "rusqlite", "sql", "sqlite", "pool"]
+categories = ["asynchronous", "database"]
+
 
 [dependencies]
 rusqlite = "0.40.2"
@@ -47,5 +55,5 @@ wal-pool = ["crossbeam-channel"]
 [workspace]
 resolver = "3"
 members = [
-    "benchmark"
+    "benchmark",
 ]

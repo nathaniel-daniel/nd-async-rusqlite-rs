@@ -1,6 +1,6 @@
 # nd-async-rusqlite
 
-Utilities for accessing an sqlite database via [`rusqlite`](https://docs.rs/rusqlite/latest/rusqlite/) in an async runtime.
+Utilities for accessing an Sqlite database via [`rusqlite`](https://docs.rs/rusqlite/latest/rusqlite/) in an async runtime.
 
 Blocking should not be done in async code.
 However, Sqlite (and therefore `rusqlite`) blocks and cannot be used in async code.
