@@ -37,13 +37,13 @@ async fn main() {
     let connection = AsyncConnection::builder()
         .open("database.db")
         .await
-        .expect("connection should be open");
+        .expect("Connection should be open");
 
     connection
         .access(|connection| connection.execute_batch(SETUP_SQL))
         .await
-        .expect("failed to access database")
-        .expect("failed to setup sql");
+        .expect("Failed to access database")
+        .expect("Failed to setup sql");
 
     connection
         .access(|connection| {
@@ -56,8 +56,8 @@ async fn main() {
             )
         })
         .await
-        .expect("failed to access database")
-        .expect("failed to insert row");
+        .expect("Failed to access database")
+        .expect("Failed to insert row");
 
     let (id, first_name, last_name) = connection
         .access(|connection| {
@@ -76,13 +76,13 @@ async fn main() {
             )
         })
         .await
-        .expect("failed to access database")
-        .expect("failed to get row");
+        .expect("Failed to access database")
+        .expect("Failed to get row");
 
     println!("Id: {id}, first_name: {first_name}, last_name: {last_name}");
 
     connection
         .close()
         .await
-        .expect("an error occured while closing");
+        .expect("An error occured while closing");
 }

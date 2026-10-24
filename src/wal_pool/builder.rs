@@ -14,7 +14,7 @@ type ConnectionSetupFn =
 
 /// A builder for a [`WalPool`].
 pub struct WalPoolBuilder {
-    /// The number of read connections
+    /// The number of read connections.
     pub readers: usize,
 
     /// A function to be called to initialize each reader.
@@ -63,6 +63,8 @@ impl WalPoolBuilder {
     }
 
     /// Open the pool.
+    ///
+    /// This will automatically put the pool into WAL mode.
     pub async fn open<P>(&self, path: P) -> Result<WalPool, Error>
     where
         P: AsRef<Path>,

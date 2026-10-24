@@ -25,10 +25,10 @@ struct InnerAsyncConnection {
 /// `AsyncConnection` executes database operations on a single dedicated background
 /// thread, allowing async code to use [`rusqlite`] without blocking.
 ///
+/// # Examples
 /// ```no_run
 /// use nd_async_rusqlite::AsyncConnection;
 ///
-/// # Examples
 /// async fn example() -> Result<(), Box<dyn std::error::Error>> {
 ///     let connection = AsyncConnection::open("example.db").await?;
 ///
@@ -44,7 +44,7 @@ struct InnerAsyncConnection {
 ///         })
 ///         .await??;
 ///
-///    connection.close()?;
+///    connection.close().await?;
 ///
 ///     Ok(())
 /// }
@@ -80,6 +80,11 @@ impl AsyncConnection {
     ///
     /// # Examples
     /// ```no_run
+    /// # use nd_async_rusqlite::AsyncConnection;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let connection = AsyncConnection::open("example.db").await?;
+    ///
     /// connection.close().await?;
     ///
     /// // This will return an error.
@@ -94,6 +99,9 @@ impl AsyncConnection {
     ///         )
     ///     })
     ///     .await??;
+    ///
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn close(&self) -> Result<(), Error> {
         let (tx, rx) = tokio::sync::oneshot::channel();
@@ -105,7 +113,7 @@ impl AsyncConnection {
         Ok(())
     }
 
-    /// Executes a closure with mutable access to the database connection.
+    /// Executes a closure with write access to the database.
     ///
     /// The closure is executed on the connection's background thread. The
     /// returned future resolves to the closure's return value once execution
@@ -121,10 +129,10 @@ impl AsyncConnection {
     ///
     /// # Examples
     /// ```no_run
-    /// use nd_async_rusqlite::AsyncConnection;
+    /// # use nd_async_rusqlite::AsyncConnection;
     ///
-    /// async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    ///     let connection = AsyncConnection::open("example.db").await?;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     let connection = AsyncConnection::open("example.db").await?;
     ///
     ///     connection
     ///         .access(|conn| {
@@ -138,8 +146,8 @@ impl AsyncConnection {
     ///         })
     ///         .await??;
     ///
-    ///     Ok(())
-    /// }
+    /// #     Ok(())
+    /// # }
     /// ```
     pub async fn access<F, T>(&self, func: F) -> Result<T, Error>
     where
