@@ -206,8 +206,8 @@ impl WalPool {
         let result = rx.await.map_err(|_| Error::Aborted)??;
         Ok(result)
     }
-    
-     /// Close the pool.
+
+    /// Close the pool.
     ///
     /// This will queue a close request to each thread.
     /// When each thread processes the close request, it will shut down.
