@@ -7,6 +7,8 @@ pub struct SyncWrapper<T>(T);
 
 impl<T> SyncWrapper<T> {
     /// Create a new [`SyncWrapper`] over an item.
+    ///
+    /// Users are not expected to use this.
     pub(crate) fn new(item: T) -> Self {
         Self(item)
     }
