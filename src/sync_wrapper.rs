@@ -1,4 +1,4 @@
-/// Inspired by https://internals.rust-lang.org/t/what-shall-sync-mean-across-an-await/12020/2.
+/// Inspired by <https://internals.rust-lang.org/t/what-shall-sync-mean-across-an-await/12020/2>.
 #[repr(transparent)]
 #[derive(Debug)]
 pub struct SyncWrapper<T>(T);
