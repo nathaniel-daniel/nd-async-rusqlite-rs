@@ -1,13 +1,13 @@
 # nd-async-rusqlite
 
-Utilities for accessing an sqlite database via [rusqlite](https://docs.rs/rusqlite/latest/rusqlite/) in an async runtime.
+Utilities for accessing an Sqlite database via [`rusqlite`](https://docs.rs/rusqlite/latest/rusqlite/) in an async runtime.
 
 Blocking should not be done in async code.
-However, sqlite (and therefore rusqlite) blocks and cannot be used in async code.
+However, Sqlite (and therefore `rusqlite`) blocks and cannot be used in async code.
 This library offers a solution by creating a background thread for sqlite calls and communicating with it via channels, allowing rusqlite to be used in async code.
 
 This library also offers a connection pool via the `WalPool` type from the `wal-pool` feature.
-This simple connection pool will maintain a user-specified number of readers and one writer, in order to make the most of WAL mode.
+This simple connection pool will maintain a user-specified number of readers and one writer, in order to make the most of `WAL` mode.
 
 ## Features
 
@@ -68,13 +68,13 @@ async fn main() {
     let connection = AsyncConnection::builder()
         .open("database.db")
         .await
-        .expect("connection should be open");
+        .expect("Connection should be open");
 
     connection
         .access(|connection| connection.execute_batch(SETUP_SQL))
         .await
-        .expect("failed to access database")
-        .expect("failed to setup sql");
+        .expect("Failed to access database")
+        .expect("Failed to setup sql");
 
     connection
         .access(|connection| {
@@ -87,8 +87,8 @@ async fn main() {
             )
         })
         .await
-        .expect("failed to access database")
-        .expect("failed to insert row");
+        .expect("Failed to access database")
+        .expect("Failed to insert row");
 
     let (id, first_name, last_name) = connection
         .access(|connection| {
@@ -107,15 +107,15 @@ async fn main() {
             )
         })
         .await
-        .expect("failed to access database")
-        .expect("failed to get row");
+        .expect("Failed to access database")
+        .expect("Failed to get row");
 
     println!("Id: {id}, first_name: {first_name}, last_name: {last_name}");
 
     connection
         .close()
         .await
-        .expect("an error occured while closing");
+        .expect("An error occured while closing");
 }
 ```
 
@@ -171,7 +171,7 @@ WHERE
         })
         .open("database.db")
         .await
-        .expect("connection should be open");
+        .expect("Connection should be open");
 
     pool.write(|connection| {
         connection.execute(
@@ -183,8 +183,8 @@ WHERE
         )
     })
     .await
-    .expect("failed to access database")
-    .expect("failed to insert row");
+    .expect("Failed to access database")
+    .expect("Failed to insert row");
 
     let (id, first_name, last_name) = pool
         .read(|connection| {
@@ -203,12 +203,12 @@ WHERE
             )
         })
         .await
-        .expect("failed to access database")
-        .expect("failed to get row");
+        .expect("Failed to access database")
+        .expect("Failed to get row");
 
     println!("Id: {id}, first_name: {first_name}, last_name: {last_name}");
 
-    pool.close().await.expect("an error occured while closing");
+    pool.close().await.expect("An error occured while closing");
 }
 ```
 

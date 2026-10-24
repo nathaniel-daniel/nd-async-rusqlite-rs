@@ -48,7 +48,7 @@ WHERE
         })
         .open("database.db")
         .await
-        .expect("connection should be open");
+        .expect("Connection should be open");
 
     pool.write(|connection| {
         connection.execute(
@@ -60,8 +60,8 @@ WHERE
         )
     })
     .await
-    .expect("failed to access database")
-    .expect("failed to insert row");
+    .expect("Failed to access database")
+    .expect("Failed to insert row");
 
     let (id, first_name, last_name) = pool
         .read(|connection| {
@@ -80,12 +80,12 @@ WHERE
             )
         })
         .await
-        .expect("failed to access database")
-        .expect("failed to get row");
+        .expect("Failed to access database")
+        .expect("Failed to get row");
 
     println!("Id: {id}, first_name: {first_name}, last_name: {last_name}");
 
-    pool.close().await.expect("an error occured while closing");
+    pool.close().await.expect("An error occured while closing");
 }
 
 #[cfg(not(feature = "wal-pool"))]

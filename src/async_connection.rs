@@ -3,6 +3,7 @@ mod builder;
 pub use self::builder::AsyncConnectionBuilder;
 use crate::Error;
 use crate::SyncWrapper;
+use std::path::Path;
 use std::sync::Arc;
 
 enum Message {
@@ -14,13 +15,54 @@ enum Message {
     },
 }
 
-/// An async rusqlite connection.
+#[derive(Debug)]
+struct InnerAsyncConnection {
+    tx: std::sync::mpsc::Sender<Message>,
+}
+
+/// An asynchronous interface to a SQLite connection on a single background thread.
+///
+/// `AsyncConnection` executes database operations on a single dedicated background
+/// thread, allowing async code to use [`rusqlite`] without blocking.
+///
+/// # Examples
+/// ```no_run
+/// use nd_async_rusqlite::AsyncConnection;
+///
+/// async fn example() -> Result<(), Box<dyn std::error::Error>> {
+///     let connection = AsyncConnection::open("example.db").await?;
+///
+///     connection
+///         .access(|conn| {
+///             conn.execute(
+///                 "CREATE TABLE IF NOT EXISTS users (
+///                     id INTEGER PRIMARY KEY,
+///                     name TEXT NOT NULL
+///                 );",
+///                 [],
+///             )
+///         })
+///         .await??;
+///
+///    connection.close().await?;
+///
+///     Ok(())
+/// }
+/// ```
 #[derive(Debug, Clone)]
 pub struct AsyncConnection {
     inner: Arc<InnerAsyncConnection>,
 }
 
 impl AsyncConnection {
+    /// Open a new [`AsyncConnection`].
+    pub async fn open<P>(path: P) -> Result<Self, Error>
+    where
+        P: AsRef<Path>,
+    {
+        AsyncConnectionBuilder::new().open(path).await
+    }
+
     /// Get a builder for an [`AsyncConnection`].
     pub fn builder() -> AsyncConnectionBuilder {
         AsyncConnectionBuilder::new()
@@ -30,11 +72,37 @@ impl AsyncConnection {
     ///
     /// This will queue a close request.
     /// When the database processes the close request,
-    /// all current queued requests will be aborted.
+    /// all current in-flight requests will be aborted.
     ///
     /// When this function returns,
     /// the database will be closed no matter the value of the return.
     /// The return value will return errors that occured while closing.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// # use nd_async_rusqlite::AsyncConnection;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let connection = AsyncConnection::open("example.db").await?;
+    ///
+    /// connection.close().await?;
+    ///
+    /// // This will return an error.
+    /// connection
+    ///     .access(|conn| {
+    ///         conn.execute(
+    ///             "CREATE TABLE IF NOT EXISTS users (
+    ///                 id INTEGER PRIMARY KEY,
+    ///                 name TEXT NOT NULL
+    ///             );",
+    ///             [],
+    ///         )
+    ///     })
+    ///     .await??;
+    ///
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn close(&self) -> Result<(), Error> {
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.inner
@@ -45,9 +113,42 @@ impl AsyncConnection {
         Ok(())
     }
 
-    /// Access the database.
+    /// Executes a closure with write access to the database.
     ///
-    /// Note that dropping the returned future will not cancel the database access.
+    /// The closure is executed on the connection's background thread. The
+    /// returned future resolves to the closure's return value once execution
+    /// completes.
+    ///
+    /// # Cancellation
+    /// Dropping the returned future will NOT cancel the database access.
+    ///
+    /// # Panics
+    ///
+    /// If the closure panics, the panic is caught and returned as
+    /// [`Error::AccessPanic`].
+    ///
+    /// # Examples
+    /// ```no_run
+    /// # use nd_async_rusqlite::AsyncConnection;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// #     let connection = AsyncConnection::open("example.db").await?;
+    ///
+    ///     connection
+    ///         .access(|conn| {
+    ///             conn.execute(
+    ///                 "CREATE TABLE IF NOT EXISTS users (
+    ///                     id INTEGER PRIMARY KEY,
+    ///                     name TEXT NOT NULL
+    ///                 );",
+    ///                 [],
+    ///             )
+    ///         })
+    ///         .await??;
+    ///
+    /// #     Ok(())
+    /// # }
+    /// ```
     pub async fn access<F, T>(&self, func: F) -> Result<T, Error>
     where
         F: FnOnce(&mut rusqlite::Connection) -> T + Send + 'static,
@@ -74,11 +175,6 @@ impl AsyncConnection {
         let result = rx.await.map_err(|_| Error::Aborted)??;
         Ok(result)
     }
-}
-
-#[derive(Debug)]
-struct InnerAsyncConnection {
-    tx: std::sync::mpsc::Sender<Message>,
 }
 
 #[cfg(test)]
