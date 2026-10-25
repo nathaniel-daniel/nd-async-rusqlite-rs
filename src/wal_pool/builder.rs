@@ -26,6 +26,24 @@ pub struct WalPoolBuilder {
     pub writer_setup: Option<ConnectionSetupFn>,
 }
 
+impl std::fmt::Debug for WalPoolBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        const FUNCTION: &str = "<function>";
+
+        f.debug_struct("WalPoolBuilder")
+            .field("readers", &self.readers)
+            .field(
+                "reader_setup",
+                &self.reader_setup.as_ref().map(|_| FUNCTION),
+            )
+            .field(
+                "writer_setup",
+                &self.writer_setup.as_ref().map(|_| FUNCTION),
+            )
+            .finish()
+    }
+}
+
 impl WalPoolBuilder {
     /// Make a new [`WalPoolBuilder`].
     pub fn new() -> Self {
