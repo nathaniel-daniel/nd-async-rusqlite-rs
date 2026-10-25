@@ -1,3 +1,32 @@
+#![warn(missing_docs)]
+#![warn(missing_debug_implementations)]
+
+//! # nd-async-rusqlite
+//!
+//! Utilities for accessing an Sqlite database via [`rusqlite`](https://docs.rs/rusqlite/latest/rusqlite/) in an async runtime.
+//!
+//! Blocking should not be done in async code.
+//! However, Sqlite (and therefore `rusqlite`) blocks and cannot be used in async code.
+//! This library offers a solution by creating a background thread for sqlite calls and communicating with it via channels, allowing rusqlite to be used in async code.
+//!
+//! This library also offers a connection pool via the `WalPool` type from the `wal-pool` feature.
+//! This simple connection pool will maintain a user-specified number of readers and one writer, in order to make the most of `WAL` mode.
+//!
+//! ## Features
+//!
+//! | Name          | Description                                                               |
+//! | ------------- | ------------------------------------------------------------------------- |
+//! | array         | Enable rusqlite's `array` feature                                         |
+//! | backup        | Enable rusqlite's `backup` feature                                        |
+//! | bundled       | Enable rusqlite's `bundled` feature                                       |
+//! | cache         | Enable rusqlite's `cache` feature                                         |
+//! | fallible_uint | Enable rusqlite's `fallible_uint` feature                                 |
+//! | functions     | Enable rusqlite's `function` feature                                      |
+//! | time          | Enable rusqlite's `time` feature                                          |
+//! | trace         | Enable rusqlite's `trace` feature                                         |
+//! | url           | Enable rusqlite's `url` feature                                           |
+//! | wal-pool      | Enable the `WalPool` type, a concurrent connection pool for WAL databases |
+
 mod async_connection;
 mod sync_wrapper;
 #[cfg(feature = "wal-pool")]

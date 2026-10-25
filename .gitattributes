@@ -1,0 +1,4 @@
+*.rs text eol=lf
+*.toml text eol=lf
+
+*.png binary
