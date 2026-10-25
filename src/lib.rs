@@ -1,3 +1,223 @@
+#![warn(missing_docs)]
+#![warn(missing_debug_implementations)]
+
+//! # nd-async-rusqlite
+//!
+//! Utilities for accessing an Sqlite database via [`rusqlite`](https://docs.rs/rusqlite/latest/rusqlite/) in an async runtime.
+//!
+//! Blocking should not be done in async code.
+//! However, Sqlite (and therefore `rusqlite`) blocks and cannot be used in async code.
+//! This library offers a solution by creating a background thread for sqlite calls and communicating with it via channels, allowing rusqlite to be used in async code.
+//!
+//! This library also offers a connection pool via the `WalPool` type from the `wal-pool` feature.
+//! This simple connection pool will maintain a user-specified number of readers and one writer, in order to make the most of `WAL` mode.
+//!
+//! ## Features
+//!
+//! | Name          | Description                                                               |
+//! | ------------- | ------------------------------------------------------------------------- |
+//! | array         | Enable rusqlite's `array` feature                                         |
+//! | backup        | Enable rusqlite's `backup` feature                                        |
+//! | bundled       | Enable rusqlite's `bundled` feature                                       |
+//! | cache         | Enable rusqlite's `cache` feature                                         |
+//! | fallible_uint | Enable rusqlite's `fallible_uint` feature                                 |
+//! | functions     | Enable rusqlite's `function` feature                                      |
+//! | time          | Enable rusqlite's `time` feature                                          |
+//! | trace         | Enable rusqlite's `trace` feature                                         |
+//! | url           | Enable rusqlite's `url` feature                                           |
+//! | wal-pool      | Enable the `WalPool` type, a concurrent connection pool for WAL databases |
+//! ## Examples
+//!
+//! ### Simple
+//!
+//! ```no_run
+//! use nd_async_rusqlite::AsyncConnection;
+//! use rusqlite::named_params;
+//!
+//! const SETUP_SQL: &str = "
+//! PRAGMA foreign_keys = ON;
+//! CREATE TABLE user (
+//!     id INTEGER PRIMARY KEY,
+//!     first_name TEXT NOT NULL,
+//!     last_name TEXT NOT NULL
+//! ) STRICT;
+//! ";
+//!
+//! const INSERT_USER_SQL: &str = "
+//! INSERT INTO user (
+//!     first_name,
+//!     last_name
+//! ) VALUES (
+//!     :first_name,
+//!     :last_name
+//! );
+//! ";
+//!
+//! const GET_USER_BY_FIRST_NAME_SQL: &str = "
+//! SELECT
+//!     id,
+//!     first_name,
+//!     last_name
+//! FROM
+//!     user
+//! WHERE
+//!     first_name = :first_name;
+//! ";
+//!
+//! #[tokio::main(flavor = "current_thread")]
+//! async fn main() {
+//!     // Remember, don't use expect in real code.
+//!     let connection = AsyncConnection::builder()
+//!         .open("database.db")
+//!         .await
+//!         .expect("Connection should be open");
+//!
+//!     connection
+//!         .access(|connection| connection.execute_batch(SETUP_SQL))
+//!         .await
+//!         .expect("Failed to access database")
+//!         .expect("Failed to setup sql");
+//!
+//!     connection
+//!         .access(|connection| {
+//!             connection.execute(
+//!                 INSERT_USER_SQL,
+//!                 named_params! {
+//!                     ":first_name": "John",
+//!                     ":last_name": "Doe",
+//!                 },
+//!             )
+//!         })
+//!         .await
+//!         .expect("Failed to access database")
+//!         .expect("Failed to insert row");
+//!
+//!     let (id, first_name, last_name) = connection
+//!         .access(|connection| {
+//!             connection.query_one(
+//!                 GET_USER_BY_FIRST_NAME_SQL,
+//!                 named_params! {
+//!                     ":first_name": "John",
+//!                 },
+//!                 |row| {
+//!                     let id: i64 = row.get("id")?;
+//!                     let first_name: String = row.get("first_name")?;
+//!                     let last_name: String = row.get("last_name")?;
+//!
+//!                     Ok((id, first_name, last_name))
+//!                 },
+//!             )
+//!         })
+//!         .await
+//!         .expect("Failed to access database")
+//!         .expect("Failed to get row");
+//!
+//!     println!("Id: {id}, first_name: {first_name}, last_name: {last_name}");
+//!
+//!     connection
+//!         .close()
+//!         .await
+//!         .expect("An error occured while closing");
+//! }
+//! ```
+//!
+//! ### WalPool
+//!
+//! ```no_run
+//! # #[cfg(not(feature = "wal-pool"))]
+//! # fn main() {}
+//! #
+//! # #[cfg(feature = "wal-pool")]
+//! #[tokio::main(flavor = "current_thread")]
+//! async fn main() {
+//!     use nd_async_rusqlite::WalPool;
+//!     use rusqlite::named_params;
+//!
+//!     const SETUP_SQL: &str = "
+//! PRAGMA foreign_keys = ON;
+//! CREATE TABLE user (
+//!     id INTEGER PRIMARY KEY,
+//!     first_name TEXT NOT NULL,
+//!     last_name TEXT NOT NULL
+//! ) STRICT;
+//! ";
+//!
+//!     const INSERT_USER_SQL: &str = "
+//! INSERT INTO user (
+//!     first_name,
+//!     last_name
+//! ) VALUES (
+//!     :first_name,
+//!     :last_name
+//! );
+//! ";
+//!
+//!     const GET_USER_BY_FIRST_NAME_SQL: &str = "
+//! SELECT
+//!     id,
+//!     first_name,
+//!     last_name
+//! FROM
+//!     user
+//! WHERE
+//!     first_name = :first_name;
+//! ";
+//!
+//!     // Remember, don't use expect in real code.
+//!     let pool = WalPool::builder()
+//!         .readers(4)
+//!         .writer_setup(|connection| {
+//!             println!("Writer connection starting up!");
+//!             connection.execute_batch(SETUP_SQL)?;
+//!             Ok(())
+//!         })
+//!         .reader_setup(|_connection| {
+//!             println!("Reader connection starting up!");
+//!             Ok(())
+//!         })
+//!         .open("database.db")
+//!         .await
+//!         .expect("Connection should be open");
+//!
+//!     pool.write(|connection| {
+//!         connection.execute(
+//!             INSERT_USER_SQL,
+//!             named_params! {
+//!                 ":first_name": "John",
+//!                 ":last_name": "Doe",
+//!             },
+//!         )
+//!     })
+//!     .await
+//!     .expect("Failed to access database")
+//!     .expect("Failed to insert row");
+//!
+//!     let (id, first_name, last_name) = pool
+//!         .read(|connection| {
+//!             connection.query_one(
+//!                 GET_USER_BY_FIRST_NAME_SQL,
+//!                 named_params! {
+//!                     ":first_name": "John",
+//!                 },
+//!                 |row| {
+//!                     let id: i64 = row.get("id")?;
+//!                     let first_name: String = row.get("first_name")?;
+//!                     let last_name: String = row.get("last_name")?;
+//!
+//!                     Ok((id, first_name, last_name))
+//!                 },
+//!             )
+//!         })
+//!         .await
+//!         .expect("Failed to access database")
+//!         .expect("Failed to get row");
+//!
+//!     println!("Id: {id}, first_name: {first_name}, last_name: {last_name}");
+//!
+//!     pool.close().await.expect("An error occured while closing");
+//! }
+//! ```
+
 mod async_connection;
 mod sync_wrapper;
 #[cfg(feature = "wal-pool")]

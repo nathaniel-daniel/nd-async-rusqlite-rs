@@ -20,7 +20,7 @@ enum Message {
 ///
 /// `WalPool` executes database operations on a background thead pool.
 /// The pool consistsof 1 writer thread and a user-configurable number of reader threads,
-/// allowing async code to use [`rusqlite`] without blocking.
+/// allowing async code to use `rusqlite` without blocking.
 ///
 /// # Examples
 /// ```no_run

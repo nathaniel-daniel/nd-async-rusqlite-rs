@@ -15,6 +15,8 @@ type ConnectionSetupFn =
 /// A builder for a [`WalPool`].
 pub struct WalPoolBuilder {
     /// The number of read connections.
+    ///
+    /// This must be greater than 0.
     pub readers: usize,
 
     /// A function to be called to initialize each reader.
@@ -22,6 +24,24 @@ pub struct WalPoolBuilder {
 
     /// A function to be called to initialize the writer.
     pub writer_setup: Option<ConnectionSetupFn>,
+}
+
+impl std::fmt::Debug for WalPoolBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        const FUNCTION: &str = "<function>";
+
+        f.debug_struct("WalPoolBuilder")
+            .field("readers", &self.readers)
+            .field(
+                "reader_setup",
+                &self.reader_setup.as_ref().map(|_| FUNCTION),
+            )
+            .field(
+                "writer_setup",
+                &self.writer_setup.as_ref().map(|_| FUNCTION),
+            )
+            .finish()
+    }
 }
 
 impl WalPoolBuilder {

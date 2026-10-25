@@ -23,7 +23,7 @@ struct InnerAsyncConnection {
 /// An asynchronous interface to a SQLite connection on a single background thread.
 ///
 /// `AsyncConnection` executes database operations on a single dedicated background
-/// thread, allowing async code to use [`rusqlite`] without blocking.
+/// thread, allowing async code to use `rusqlite` without blocking.
 ///
 /// # Examples
 /// ```no_run
