@@ -15,6 +15,8 @@ type ConnectionSetupFn =
 /// A builder for a [`WalPool`].
 pub struct WalPoolBuilder {
     /// The number of read connections.
+    ///
+    /// This must be greater than 0.
     pub readers: usize,
 
     /// A function to be called to initialize each reader.
